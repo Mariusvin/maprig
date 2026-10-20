@@ -151,6 +151,12 @@ The installed executable and login state stay in the home volume across ordinary
 container recreation. Deleting that volume removes them. Keep sign-in codes,
 tokens, account details and runtime state out of Git and public proof artifacts.
 
+For multiple subscription logins, use the repository's
+[local account helper](local-agent-accounts.md). It enrolls each account once,
+then switches saved logins for either provider while snapshotting and resuming
+affected rigs. It preserves the native conversation store and never logs the
+outgoing account out.
+
 A Windows CLI installation and desktop login are not automatically available
 inside a Linux container or WSL distribution. Check the CLI's version and native
 login status in the environment where the seat will launch. Complete that CLI's
