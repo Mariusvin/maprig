@@ -42,7 +42,8 @@ describe("linked planning graph", () => {
     expect(fs.readFileSync(source, "utf8")).toBe(original);
     const changed = fixture();
     changed.project.graphs[0]!.nodes[0]!.progress = 51;
-    fs.writeFileSync(source, JSON.stringify(changed));
+    fs.writeFileSync(`${source}.tmp`, JSON.stringify(changed));
+    fs.renameSync(`${source}.tmp`, source);
     const updated = await (await app.request("/api/planning/example")).json();
     expect(updated.project.graphs[0].nodes[0].progress).toBe(51);
     expect(updated.source.sha256).not.toBe(result.source.sha256);

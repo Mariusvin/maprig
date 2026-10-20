@@ -7,7 +7,7 @@ import { PlanningGraph, graphTrail, type PlanProject } from "../src/components/p
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate, Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a> }));
 vi.mock("@xyflow/react", () => ({ ReactFlow: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, Background: () => null,
-  Controls: () => null, Handle: () => null, Position: { Left: "left", Right: "right" } }));
+  Controls: () => null, Handle: () => null, Position: { Left: "left", Right: "right" }, useReactFlow: () => ({ fitView: () => {} }), useNodesInitialized: () => false }));
 const item = (id: string, progress: number) => ({ id, title: `Task ${id}`, progress, status: "in_progress", position: { x: 0, y: 0 }, dependsOn: [] as string[] });
 const project: PlanProject = { id: "example", name: "Example", rootGraphId: "root", graphs: [
   { id: "root", title: "Root", level: 1, nodes: [{ ...item("a", 44), childGraphId: "child", summary: "Preserved summary", references: [{ title: "Unsafe reference", url: "javascript:alert(1)" }] }, { ...item("b", 96), dependsOn: ["a"] }] },

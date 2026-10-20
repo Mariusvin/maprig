@@ -12,6 +12,8 @@
 .planning-workspace .plan-link, .plan-breadcrumb button { color: var(--plan-violet); text-decoration: underline; border: 0; padding: 0; background: transparent; text-align: left; }
 .plan-sync { font-size: 11px; }
 .plan-summary { max-width: 110ch; margin: 16px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plan-brief { padding: 12px 0; border-bottom: 1px solid var(--plan-rule); }
+.plan-brief summary { cursor: pointer; color: #6600cc; }
 .plan-breadcrumb { padding: 8px 0; overflow-wrap: anywhere; }
 .plan-breadcrumb [aria-current] { color: #0a0a0a; font-weight: 700; text-decoration: none; }
 .plan-graph-heading { margin-bottom: 12px; }

@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ReactFlow, Background, Controls, Handle, Position, type NodeProps, type Node } from "@xyflow/react";
+import { ReactFlow, Background, Controls, Handle, Position, useReactFlow, useNodesInitialized, type NodeProps, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./planning-graph.css";
 
@@ -49,6 +49,12 @@ function PlanGraphNode({ data, selected }: NodeProps<FlowNode>) {
   </div>;
 }
 const nodeTypes = { plan: PlanGraphNode };
+function FocusSelectedTask({ id }: { id?: string }) {
+  const ready = useNodesInitialized();
+  const { fitView } = useReactFlow();
+  useEffect(() => { if (id && ready) void fitView({ nodes: [{ id }], padding: 0.3, minZoom: 0.5, maxZoom: 1 }); }, [id, ready, fitView]);
+  return null;
+}
 const safeUrl = (url: unknown): url is string => typeof url === "string" && /^https?:\/\//i.test(url);
 
 export function PlanningGraph({ search }: { search: PlanSearch }) {
@@ -60,7 +66,7 @@ export function PlanningGraph({ search }: { search: PlanSearch }) {
   const project = result.data?.project;
   const graph = project?.graphs.find(g => g.id === (search.graph ?? project.rootGraphId));
   const selected = graph?.nodes.find(n => n.id === search.node);
-  const nodes = useMemo<FlowNode[]>(() => graph?.nodes.map(n => ({ id: n.id, type: "plan", position: n.position,
+  const nodes = useMemo<FlowNode[]>(() => graph?.nodes.map(n => ({ id: n.id, type: "plan", position: n.position, initialWidth: 280, initialHeight: 160,
     data: { item: n }, selected: n.id === search.node, ariaLabel: `${n.title}, ${n.progress}%, ${statusLabel(n.status)}` })) ?? [], [graph, search.node]);
   const edges = useMemo(() => graph?.nodes.flatMap(n => n.dependsOn.map(d => ({ id: `${d}:${n.id}`, source: d, target: n.id,
     style: { stroke: "#6600cc", strokeWidth: 1.5 }, markerEnd: { type: "arrowclosed" as const, color: "#6600cc" } }))) ?? [], [graph]);
@@ -83,7 +89,7 @@ export function PlanningGraph({ search }: { search: PlanSearch }) {
     {!error && (catalog.isLoading || (!!projectId && result.isLoading)) && <p>Loading project plan...</p>}
     {!error && !catalog.isLoading && !projectId && <p>No linked plans. Register a project with a .maproom/project.json source in the workspace catalog.</p>}
     {project && <>
-      <p className="plan-summary">{project.summary}</p>
+      {project.summary && <details className="plan-brief"><summary>Project brief and current checkpoint</summary><p className="plan-summary">{project.summary}</p></details>}
       {graph ? <>
         <nav className="plan-breadcrumb" aria-label="Graph levels">{graphTrail(project, graph).map((g, index) => <span key={g.id}>
           {index > 0 && <span aria-hidden="true"> / </span>}<button type="button" aria-current={g.id === graph.id ? "page" : undefined}
@@ -93,10 +99,10 @@ export function PlanningGraph({ search }: { search: PlanSearch }) {
         <div className="plan-layout">
           <section className="plan-canvas" aria-label={`Level ${graph.level} planning graph`}>
             <ReactFlow key={`${project.id}:${graph.id}`} nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView
-              fitViewOptions={{ padding: 0.15, maxZoom: 1 }} minZoom={0.08} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false}
+              fitViewOptions={{ padding: 0.15, minZoom: 0.45, maxZoom: 1 }} minZoom={0.08} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false}
               onNodeClick={(_, n) => go({ project: project.id, graph: graph.id, node: n.id })}
               onNodeDoubleClick={(_, n) => { if (n.data.item.childGraphId) go({ project: project.id, graph: n.data.item.childGraphId }); }}>
-              <Background color="#b8b6ae" gap={24} /><Controls showInteractive={false} />
+              <Background color="#b8b6ae" gap={24} /><Controls showInteractive={false} /><FocusSelectedTask id={selected?.id} />
             </ReactFlow>
           </section>
           <aside className="plan-inspector" aria-label="Task inspector">
