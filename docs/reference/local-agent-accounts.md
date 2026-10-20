@@ -41,6 +41,21 @@ Complete the native sign-in in your browser, selecting the intended account.
 The OpenAI enrollment uses device authorization by default. If the account
 requires it, enable device authorization in its security settings, then retry
 with a fresh code. `--browser` selects the ordinary browser login instead.
+If a workspace administrator has disabled device authorization, use the provider's
+normal browser login instead:
+
+```sh
+node scripts/local-agent-accounts.mjs add work --provider openai --browser
+```
+
+The helper temporarily forwards `localhost:1455` on both loopback address families
+to the native callback inside the existing container. It refuses an occupied
+callback port. Complete the browser prompts using the intended account and
+workspace; no code needs to be pasted into a terminal. The forwarder closes when
+the native login ends, without changing Docker port mappings. Browser sign-in
+remains subject to workspace access rules. This fallback follows the provider's
+[headless authentication guidance](https://learn.chatgpt.com/docs/auth#login-on-headless-devices).
+
 Claude enrollment uses its subscription login flow. Native prompts and temporary
 login codes appear only in the terminal where you run the command.
 

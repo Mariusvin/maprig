@@ -121,12 +121,18 @@ export function dockerDependencies(container = 'openrig-isolated') {
       const command = provider === 'claude' ? ['claude', 'auth', 'login', '--claudeai'] : ['codex', 'login', ...(browser ? [] : ['--device-auth'])];
       // Native login owns its browser prompt and private token writes. This
       // process never captures or persists the login's output.
-      await new Promise((resolve, reject) => {
+      let forwarder;
+      if (provider === 'openai' && browser) {
+        const { startLoginForwarder } = await import(new URL('./local-agent-login-forwarder.mjs', import.meta.url));
+        forwarder = await startLoginForwarder(container);
+        console.log('Temporary browser callback forwarding is ready on localhost:1455.');
+      }
+      try { await new Promise((resolve, reject) => {
         const unset = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'].flatMap(key => ['-u', key]);
         const child = spawn('docker', ['exec', ...flags, '-e', `${prepared.variable}=${prepared.home}`, container, 'env', ...unset, ...command], { stdio: 'inherit', windowsHide: true });
         child.on('error', () => reject(Error('native_login_unavailable')));
         child.on('exit', code => code === 0 ? resolve() : reject(Error('native_login_incomplete')));
-      });
+      }); } finally { await forwarder?.close(); }
     },
   };
 }
