@@ -1,0 +1,11 @@
+# Use alongside the existing isolated launch compose.yaml.
+# Mount the directory, so Maproom's atomic project.json replacements stay visible.
+services:
+  openrig:
+    volumes:
+      - type: bind
+        source: ${MAPROOM_ROOM_PATH:?Set MAPROOM_ROOM_PATH to the existing .maproom directory}
+        target: /home/node/.openrig/workspace/projects/${MAPROOM_PROJECT_ID:?Set MAPROOM_PROJECT_ID}/.maproom
+        read_only: true
+        bind:
+          create_host_path: false

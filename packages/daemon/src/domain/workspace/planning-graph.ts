@@ -42,7 +42,8 @@ export function parsePlanningProject(value: unknown, expectedId: string): Planni
   const fail = (message: string): never => { throw new Error(`Invalid planning source: ${message}`); };
   if (!object(value) || value.version !== 1 || !object(value.project)) return fail("expected Maproom version 1 project envelope");
   const p = value.project;
-  if (p.id !== expectedId || !id(p.id) || !text(p.name) || !id(p.rootGraphId) || !Array.isArray(p.graphs) || p.graphs.length > 1000) return fail("project identity or graphs");
+  if (p.id !== expectedId || !id(p.id) || !text(p.name) || !id(p.rootGraphId) || !Array.isArray(p.graphs) || p.graphs.length > 1000 ||
+    (p.summary !== undefined && !text(p.summary)) || (p.updatedAt !== undefined && !text(p.updatedAt))) return fail("project identity or graphs");
   const graphIds = new Set<string>();
   const nodeIds = new Set<string>();
   for (const g of p.graphs) {
@@ -55,7 +56,8 @@ export function parsePlanningProject(value: unknown, expectedId: string): Planni
         !finite(n.progress) || n.progress < 0 || n.progress > 100 || !object(n.position) || !finite(n.position.x) || !finite(n.position.y) ||
         !Array.isArray(n.dependsOn) || !n.dependsOn.every(id) || (n.childGraphId !== undefined && !id(n.childGraphId)) ||
         (n.summary !== undefined && !text(n.summary)) || (n.conclusion !== undefined && !text(n.conclusion)) ||
-        (n.references !== undefined && !Array.isArray(n.references))) return fail("node identity, state or shape");
+        (n.references !== undefined && (!Array.isArray(n.references) || !n.references.every(r => object(r) &&
+          (r.id === undefined || text(r.id)) && (r.title === undefined || text(r.title)) && (r.url === undefined || text(r.url)))))) return fail("node identity, state or shape");
       nodeIds.add(n.id);
       localIds.add(n.id);
       if (nodeIds.size > 10000) return fail("too many nodes");
