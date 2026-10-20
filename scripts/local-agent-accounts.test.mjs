@@ -163,6 +163,9 @@ test('Docker transport keeps a live lock owner through native selection and rig 
   fs.writeFileSync(path.join(native, 'auth.json'), credential('fixture-one'));
   fs.writeFileSync(path.join(selected, 'auth.json'), credential('fixture-two'));
   fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+  // This transport fixture has no native sessions. Isolate its inventory from
+  // other test files' short-lived fake provider processes on the same host.
+  fs.writeFileSync(path.join(bin, 'ps'), '#!/bin/sh\nexit 0\n', { mode: 0o700 });
   fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\nshift\nif [ "$1" = "-i" ]; then shift; fi\nshift\nexec "$@"\n', { mode: 0o700 });
   fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nconsole.log('Logged in using ChatGPT');`, { mode: 0o700 });
   const rig = `#!${process.execPath}
@@ -170,11 +173,12 @@ test('Docker transport keeps a live lock owner through native selection and rig 
     const action=process.argv[2];
     fs.appendFileSync(path.join(process.env.HOME,'rig-calls'),action+'\\n');
     let result;
-    if(action==='ps') { if(!process.argv.includes('-A')) process.exit(1); result=[{rigId:'fixture-rig',rigName:'fixture-team',logicalId:'build.agent',runtime:'codex',canonicalSessionName:'build@fixture',sessionStatus:'running',resumeTokenPresent:true,agentActivity:{state:'idle'}}]; }
+    if(action==='ps') { if(!process.argv.includes('-A')) process.exit(1); if(process.env.FIXTURE_INVENTORY_WARNING) console.error('fixture-private-inventory-warning'); result=[{rigId:'fixture-rig',rigName:'fixture-team',logicalId:'build.agent',runtime:'codex',canonicalSessionName:'build@fixture',sessionStatus:'running',resumeTokenPresent:true,agentActivity:{state:'idle'}}]; }
     if(action==='down') result={snapshotId:'fixture-snapshot',errors:[]};
     if(action==='up') {
       if(!process.argv.includes('--existing')||process.argv[3]!=='fixture-team') process.exit(1);
-      result={rigId:'fixture-rig',nodes:[{logicalId:'build.agent',status:'resumed'}]};
+      result={status:'restored',rigResult:'partially_restored',rigId:'fixture-rig',nodes:[{logicalId:'build.agent',status:'resumed'},{logicalId:'human',status:'fresh-primed'}]};
+      process.exitCode=1;
     }
     console.log(JSON.stringify(result));`;
   fs.writeFileSync(path.join(bin, 'rig'), rig, { mode: 0o700 });
@@ -185,9 +189,21 @@ test('Docker transport keeps a live lock owner through native selection and rig 
     encoding: 'utf8', timeout: 15_000,
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).outcome, 'resumed');
+  assert.equal(JSON.parse(result.stdout).outcome, 'resumed', result.stdout);
   assert.equal(fs.readFileSync(path.join(home, 'rig-calls'), 'utf8'), 'ps\ndown\nup\n');
   assert.equal(fs.readFileSync(path.join(native, 'auth.json'), 'utf8'), credential('fixture-two'));
   assert(!result.stdout.includes('fixture-private-transport-token'));
   assert.equal(fs.existsSync(path.join(path.dirname(selected), '.operation-lock')), false);
+  // A zero-exit partial fleet inventory must fail before any rig is stopped.
+  fs.writeFileSync(path.join(path.dirname(selected), '.active-account'), 'primary\n');
+  fs.writeFileSync(path.join(native, 'auth.json'), credential('fixture-one'));
+  fs.writeFileSync(path.join(home, 'rig-calls'), '');
+  const refused = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    env: { ...process.env, HOME: home, OPENRIG_HOME: path.join(home, '.openrig'), CODEX_HOME: native, PATH: `${bin}:/usr/bin:/bin`, FIXTURE_INVENTORY_WARNING: '1' },
+    encoding: 'utf8', timeout: 15_000,
+  });
+  assert.notEqual(refused.status, 0);
+  assert(refused.stderr.includes('seat_inventory_unavailable'));
+  assert(!refused.stderr.includes('fixture-private-inventory-warning'));
+  assert.equal(fs.readFileSync(path.join(home, 'rig-calls'), 'utf8'), 'ps\n');
 });

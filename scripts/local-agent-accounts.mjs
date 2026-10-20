@@ -79,12 +79,18 @@ async function switchWithLease(options, deps, before) {
   }
 }
 
-function jsonProcess(command, args, input, timeout = 20_000) {
+function jsonProcess(command, args, input, timeout = 20_000, options = {}) {
   const result = spawnSync(command, args, { input, encoding: 'utf8', timeout, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
   if (result.error || result.signal) throw Error('operation_outcome_unknown');
+  // Fleet inventory currently warns and exits zero when a rig's node read
+  // fails. Do not stop the other rigs using that incomplete inventory.
+  if (options.inventory && result.stderr.trim()) throw Error('seat_inventory_unavailable');
   let data;
   try { data = JSON.parse(result.stdout); } catch { throw Error('operation_response_unreadable'); }
   if (result.status !== 0) {
+    // The existing CLI can mark a restore partial for a terminal peer. Keep
+    // its receipt so the caller can verify every previously live agent.
+    if (options.restore && result.status === 1 && data.status === 'restored' && data.rigResult === 'partially_restored' && Array.isArray(data.nodes)) return data;
     const message = typeof data.error === 'string' && /^[a-z_]+$/.test(data.error) ? data.error : 'operation_failed';
     throw Error(message);
   }
@@ -126,7 +132,7 @@ export function dockerDependencies(container = 'openrig-isolated') {
 }
 
 export function localRig(args) {
-  return jsonProcess('rig', args, undefined, ['up', 'down'].includes(args[0]) ? 150_000 : 20_000);
+  return jsonProcess('rig', args, undefined, ['up', 'down'].includes(args[0]) ? 150_000 : 20_000, { inventory: args[0] === 'ps', restore: args[0] === 'up' });
 }
 
 export async function main(argv = process.argv.slice(2)) {
