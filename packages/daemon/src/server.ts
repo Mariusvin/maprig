@@ -114,6 +114,7 @@ import { filesRoutes } from "./routes/files.js";
 import { progressRoutes } from "./routes/progress.js";
 import { scopeAuditRoutes } from "./routes/scope-audit.js";
 import { scopesRoutes } from "./routes/scopes.js";
+import { planningRoutes } from "./routes/planning.js";
 import { telemetryRoutes } from "./routes/telemetry.js";
 import { proofRoutes } from "./routes/proof.js";
 import { scopeApproveRoutes } from "./routes/scope-approve.js";
@@ -824,6 +825,7 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/api/scope/audit", scopeAuditRoutes());
   // SCOPES VIEW (d64d2f5c): the store-direct TUI read.
   app.route("/api/scopes", scopesRoutes());
+  app.route("/api/planning", planningRoutes());
   // 51-08 A3 — usage series + top-N burn over usage_samples (one projection, CLI+HTTP).
   app.route("/api/telemetry", telemetryRoutes({ db: () => deps.rigRepo.db,
     source: { hostId: getSelfHostId(), bootEpoch: deps.daemonBootEpoch ?? null } }));
