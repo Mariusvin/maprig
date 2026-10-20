@@ -21,7 +21,8 @@ try {
   const envelope = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   const project = parsePlanningProject(envelope, envelope?.project?.id);
   const catalog = path.join(workspaceRoot, "workspace.yaml");
-  lockPath = path.join(workspaceRoot, ".openrig-maproom-link.lock");
+  const catalogTarget = fs.existsSync(catalog) ? fs.realpathSync(catalog) : catalog;
+  lockPath = path.join(path.dirname(catalogTarget), ".openrig-maproom-link.lock");
   try { lock = fs.openSync(lockPath, "wx"); }
   catch (error) { if (error.code === "EEXIST") throw new Error("Another Maproom registration holds the catalog lock; retry after it finishes"); throw error; }
   fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
@@ -37,12 +38,14 @@ try {
   }
   if (!matchingId.length) {
     document.addIn(["projects"], { id: project.id, root: path.relative(workspaceRoot, projectRoot).split(path.sep).join("/") || "." });
-    const temporary = `${catalog}.${process.pid}.tmp`;
+    const temporary = `${catalogTarget}.${process.pid}.tmp`;
     try {
       fs.writeFileSync(temporary, String(document), { flag: "wx" });
       const current = fs.existsSync(catalog) ? fs.readFileSync(catalog, "utf8") : "schema: openrig.workspace/v0alpha1\nprojects: []\n";
-      if (current !== original) throw new Error("Workspace catalog changed during registration; no changes applied, retry with the current catalog");
-      fs.renameSync(temporary, catalog);
+      const currentTarget = fs.existsSync(catalog) ? fs.realpathSync(catalog) : catalog;
+      if (current !== original || currentTarget !== catalogTarget) throw new Error("Workspace catalog changed during registration; no changes applied, retry with the current catalog");
+      if (fs.existsSync(catalogTarget)) fs.chmodSync(temporary, fs.statSync(catalogTarget).mode & 0o7777);
+      fs.renameSync(temporary, catalogTarget);
     } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
   }
   console.log(JSON.stringify({ id: project.id, name: project.name, graphs: project.graphs.length,

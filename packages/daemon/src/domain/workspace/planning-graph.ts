@@ -81,11 +81,19 @@ export function parsePlanningProject(value: unknown, expectedId: string): Planni
 export function readPlanningProject(entry: Pick<ProjectRead, "id" | "root">) {
   const root = fs.realpathSync(entry.root);
   const filename = path.join(root, ".maproom", "project.json");
-  insideProject(root, filename);
-  if (fs.statSync(filename).size > 20 * 1024 * 1024) throw new Error("Planning source exceeds 20 MiB");
-  const bytes = fs.readFileSync(filename);
+  const canonical = insideProject(root, filename);
+  const fd = fs.openSync(canonical, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  let bytes: Buffer;
+  let modifiedAt: string;
+  try {
+    if (insideProject(root, filename) !== canonical) throw new Error("Planning source changed while opening; refresh to retry");
+    const info = fs.fstatSync(fd);
+    if (!info.isFile() || info.size > 20 * 1024 * 1024) throw new Error("Planning source must be a file no larger than 20 MiB");
+    bytes = fs.readFileSync(fd);
+    modifiedAt = info.mtime.toISOString();
+  } finally { fs.closeSync(fd); }
   const project = parsePlanningProject(JSON.parse(bytes.toString("utf8")), entry.id);
   return { project, source: { kind: "maproom" as const, mode: "linked" as const, path: filename,
     sha256: createHash("sha256").update(bytes).digest("hex"), readAt: new Date().toISOString(),
-    modifiedAt: fs.statSync(filename).mtime.toISOString() } };
+    modifiedAt } };
 }

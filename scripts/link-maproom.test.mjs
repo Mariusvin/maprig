@@ -100,3 +100,20 @@ test("an intervening external edit survives aborted registration", () => {
     assert.equal(fs.readdirSync(f.workspace).some(name => name.endsWith(".tmp")), false);
   } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
 });
+
+test("a symlinked catalog retains its link and updates its actual target", { skip: process.platform === "win32" }, () => {
+  const f = setup();
+  try {
+    const target = path.join(f.root, "shared-catalog.yaml");
+    fs.renameSync(f.catalog, target);
+    fs.chmodSync(target, 0o640);
+    fs.symlinkSync(target, f.catalog);
+    const result = f.run();
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.lstatSync(f.catalog).isSymbolicLink(), true);
+    assert.equal(fs.realpathSync(f.catalog), target);
+    assert.match(fs.readFileSync(target, "utf8"), /id: example/);
+    assert.equal(fs.statSync(target).mode & 0o777, 0o640);
+    assert.equal(JSON.parse(f.run().stdout).changed, false);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});

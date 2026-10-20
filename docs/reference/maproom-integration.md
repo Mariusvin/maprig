@@ -26,10 +26,12 @@ The script validates the source, then adds its identity and relative root to
 link changes nothing. An ID or root collision stops without writing. It does not
 change the source project or require an OpenRig mission scaffold in that project.
 The source file must resolve inside the registered project directory.
-Concurrent helper registrations use an exclusive workspace lock. If another
-editor changes the catalog before replacement, linking aborts and can be retried.
-A helper interrupted before cleanup can leave `.openrig-maproom-link.lock`;
-inspect its recorded process ID before removing a stale lock.
+Concurrent helper registrations use an exclusive lock beside the catalog's real
+target. Detected external edits abort registration and can be retried. External
+editors must share the lock or avoid editing during registration; a comparison
+alone cannot serialize an uncoordinated writer. A helper interrupted before
+cleanup can leave `.openrig-maproom-link.lock`; inspect its recorded process ID
+before removing a stale lock. Symlinked catalogs retain their link and file mode.
 
 If `workspace.catalog_path` is customized, register the entry in that catalog
 instead. The helper above targets the default `workspace.yaml` catalog only.
