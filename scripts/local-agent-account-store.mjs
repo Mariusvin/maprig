@@ -89,23 +89,37 @@ function processIdentity(pid) {
     throw Error('lock_owner_unavailable');
   }
 }
+function lockOwner(file) {
+  // The Linux lock's target is metadata, never a path to follow. Creating this
+  // symlink is atomic, including its owner data, even if killed immediately.
+  if (process.platform === 'linux') {
+    if (!stat(file)?.isSymbolicLink()) throw Error('invalid_lock_owner');
+    try { return JSON.parse(fs.readlinkSync(file)); } catch { throw Error('invalid_lock_owner'); }
+  }
+  return state(file);
+}
 function lockFile(file, busy) {
   directory(path.dirname(file), true);
   const leaseId = randomUUID();
   const owner = { leaseId, pid: process.pid, start: process.platform === 'linux' ? processIdentity(process.pid) : null };
-  let fd;
-  try { fd = fs.openSync(file, 'wx', 0o600); }
+  const create = () => {
+    if (process.platform === 'linux') fs.symlinkSync(JSON.stringify(owner), file);
+    else {
+      const fd = fs.openSync(file, 'wx', 0o600);
+      try { fs.writeFileSync(fd, JSON.stringify(owner)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    }
+  };
+  try { create(); }
   catch (error) {
     if (error.code !== 'EEXIST') throw Error('account_storage_unavailable');
-    const previous = state(file);
+    const previous = lockOwner(file);
     if (!Number.isInteger(previous.pid) || typeof previous.start !== 'string' || process.platform !== 'linux') throw Error(busy);
     if (processIdentity(previous.pid) === previous.start) throw Error(busy);
     // Only reclaim a dead owner's unchanged file, never a live operation.
-    if (state(file).leaseId !== previous.leaseId) throw Error(busy);
+    if (lockOwner(file).leaseId !== previous.leaseId) throw Error(busy);
     fs.unlinkSync(file);
-    try { fd = fs.openSync(file, 'wx', 0o600); } catch { throw Error(busy); }
+    try { create(); } catch { throw Error(busy); }
   }
-  try { fs.writeFileSync(fd, JSON.stringify(owner)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   return { leaseId };
 }
 export function acquireSwitchLease(provider, env = process.env) {
@@ -113,7 +127,7 @@ export function acquireSwitchLease(provider, env = process.env) {
 }
 export function releaseSwitchLease(provider, leaseId, env = process.env) {
   const layout = accountLayout(provider, env), file = path.join(layout.root, '.operation-lock');
-  if (state(file).leaseId !== leaseId) throw Error('account_operation_owner_changed');
+  if (lockOwner(file).leaseId !== leaseId) throw Error('account_operation_owner_changed');
   fs.unlinkSync(file);
   return { released: true };
 }

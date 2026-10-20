@@ -26,10 +26,12 @@ async function switchWithLease(options, deps, before) {
   const target = await deps.store('checkAccount', [provider, account]);
   if (!target.loggedIn) throw Error('target_not_signed_in');
   if (!target.fingerprint) throw Error('account_identity_unavailable');
-  const nodes = await deps.rig(['ps', '--nodes', '--json']);
+  const nodes = await deps.rig(['ps', '--nodes', '-A', '--json']);
   if (!Array.isArray(nodes)) throw Error('seat_inventory_unavailable');
   const affected = nodes.filter(n => n.runtime === RUNTIME[provider] && LIVE.has(n.sessionStatus));
   const rigs = [...new Set(affected.map(n => n.rigId))];
+  const names = new Map(rigs.map(id => [id, nodes.find(n => n.rigId === id)?.rigName]));
+  if (rigs.some(id => typeof names.get(id) !== 'string' || !names.get(id) || nodes.some(n => n.rigId !== id && n.rigName === names.get(id)))) throw Error('rig_name_unavailable_or_ambiguous');
   const peers = nodes.filter(n => rigs.includes(n.rigId) && n.runtime !== 'terminal' && LIVE.has(n.sessionStatus));
   if (peers.some(n => !n.resumeTokenPresent)) throw Error('conversation_unavailable');
   if (!interrupt && peers.some(n => !['idle', 'needs_input'].includes(n.agentActivity?.state))) throw Error('seat_working_or_unknown');
@@ -57,9 +59,9 @@ async function switchWithLease(options, deps, before) {
     if (!selected.loggedIn || selected.fingerprint !== target.fingerprint) throw Error('selected_account_unverified');
     const restored = [];
     for (const rig of stopped) {
-      const up = await deps.rig(['up', rig, '--existing', '--json']);
+      const up = await deps.rig(['up', names.get(rig), '--existing', '--json']);
       const expected = peers.filter(n => n.rigId === rig);
-      if (!Array.isArray(up.nodes) || expected.some(old => !up.nodes.some(n => n.logicalId === old.logicalId && n.status === 'resumed'))) throw Error('native_continuity_unconfirmed');
+      if (up.rigId !== rig || !Array.isArray(up.nodes) || expected.some(old => !up.nodes.some(n => n.logicalId === old.logicalId && n.status === 'resumed'))) throw Error('native_continuity_unconfirmed');
       restored.push(rig);
     }
     return { ...summary, outcome: 'resumed', restored };
@@ -73,7 +75,7 @@ async function switchWithLease(options, deps, before) {
     }
     return { ...summary, active: observed, outcome: 'incomplete',
       reason: /^[a-z_]+$/.test(error.message) ? error.message : 'operation_outcome_unknown',
-      stoppedRigs: stopped, stopOutcomeUnknown: stopping, recovery: 'Inspect account status and rig ps before retrying. Resume stopped rigs with rig up <rig> --existing; never use a fresh launch to recover this switch.' };
+      stoppedRigs: stopped, stopOutcomeUnknown: stopping, rigNames: Object.fromEntries(names), recovery: 'Inspect account status and rig ps before retrying. Resume stopped rigs with rig up <rig-name> --existing; never use a fresh launch to recover this switch.' };
   }
 }
 

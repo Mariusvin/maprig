@@ -20,7 +20,7 @@ function harness(overrides = {}) {
       effects.push(['rig', args]);
       if (args[0] === 'ps') return [{ rigId: 'rig-1', rigName: 'test-team', logicalId: 'build.agent', runtime: 'claude-code', canonicalSessionName: 'build@test-team', sessionStatus: 'running', resumeTokenPresent: true, agentActivity: { state: 'idle' } }];
       if (args[0] === 'down') return { sessionsKilled: 1, snapshotId: 'snapshot-1', errors: [] };
-      if (args[0] === 'up') return { status: 'restored', nodes: [{ logicalId: 'build.agent', status: 'resumed' }] };
+      if (args[0] === 'up') return { status: 'restored', rigId: 'rig-1', nodes: [{ logicalId: 'build.agent', status: 'resumed' }] };
     },
     ...overrides,
   };
@@ -37,6 +37,8 @@ test('one switch stops with a snapshot before selection, then resumes existing r
   const up = effects.findIndex(e => e[0] === 'rig' && e[1][0] === 'up');
   assert(down < activate && activate < up);
   assert(effects[up][1].includes('--existing'));
+  assert.equal(effects[up][1][1], 'test-team');
+  assert(effects.find(e => e[0] === 'rig' && e[1][0] === 'ps')[1].includes('-A'));
   assert(!JSON.stringify(effects).includes('logout'));
 });
 
@@ -168,11 +170,11 @@ test('Docker transport keeps a live lock owner through native selection and rig 
     const action=process.argv[2];
     fs.appendFileSync(path.join(process.env.HOME,'rig-calls'),action+'\\n');
     let result;
-    if(action==='ps') result=[{rigId:'fixture-rig',logicalId:'build.agent',runtime:'codex',canonicalSessionName:'build@fixture',sessionStatus:'running',resumeTokenPresent:true,agentActivity:{state:'idle'}}];
+    if(action==='ps') { if(!process.argv.includes('-A')) process.exit(1); result=[{rigId:'fixture-rig',rigName:'fixture-team',logicalId:'build.agent',runtime:'codex',canonicalSessionName:'build@fixture',sessionStatus:'running',resumeTokenPresent:true,agentActivity:{state:'idle'}}]; }
     if(action==='down') result={snapshotId:'fixture-snapshot',errors:[]};
     if(action==='up') {
-      if(!process.argv.includes('--existing')) process.exit(1);
-      result={nodes:[{logicalId:'build.agent',status:'resumed'}]};
+      if(!process.argv.includes('--existing')||process.argv[3]!=='fixture-team') process.exit(1);
+      result={rigId:'fixture-rig',nodes:[{logicalId:'build.agent',status:'resumed'}]};
     }
     console.log(JSON.stringify(result));`;
   fs.writeFileSync(path.join(bin, 'rig'), rig, { mode: 0o700 });
