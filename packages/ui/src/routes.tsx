@@ -71,6 +71,7 @@ import { ProjectGraphicsPreview } from "./components/lab/ProjectGraphicsPreview.
 import { CardPreviewsLab } from "./components/lab/CardPreviewsLab.js";
 import { VellumLab } from "./components/lab/VellumLab.js";
 import { PlanningGraph, usePlanningProjects } from "./components/project/PlanningGraph.js";
+import { ProjectChanges } from "./components/project/ProjectChanges.js";
 import {
   VellumBgLarge,
   VellumBgSmall,
@@ -158,6 +159,13 @@ const planningRoute = createRoute({
     node: typeof search.node === "string" ? search.node : undefined,
   }),
   component: () => <PlanningGraph search={useSearch({ from: "/project/plan" })} />,
+});
+
+const projectChangesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/project/changes",
+  validateSearch: (search: Record<string, unknown>): { project?: string } => ({ project: typeof search.project === "string" ? search.project : undefined }),
+  component: () => <ProjectChanges projectId={useSearch({ from: "/project/changes" }).project} />,
 });
 
 const projectMissionRoute = createRoute({
@@ -567,6 +575,7 @@ export const routeTree = rootRoute.addChildren([
   forYouRoute,
   projectRoute,
   planningRoute,
+  projectChangesRoute,
   projectMissionRoute,
   projectSliceRoute,
   rigAgentsRoute,

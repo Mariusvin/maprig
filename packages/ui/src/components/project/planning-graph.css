@@ -48,3 +48,20 @@
 @media (max-width: 1000px) { .plan-layout { grid-template-columns: minmax(0, 1fr); } .plan-inspector { border-left: 0; border-top: 1px solid var(--plan-rule); max-height: none; } .plan-canvas { height: 450px; } }
 @media (max-width: 600px) { .planning-workspace { padding: 16px 12px; } .plan-task-index li { flex-wrap: wrap; gap: 8px; } .plan-toolbar label, .plan-toolbar select { max-width: 100%; } .plan-header h1 { font-size: 28px; } }
 @media (prefers-reduced-motion: reduce) { .planning-workspace * { animation: none !important; transition: none !important; } }
+.changes-intro { margin: 16px 0; }
+.changes-layout { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); border: 1px solid var(--plan-rule); }
+.changes-files, .changes-diff { padding: 16px; min-width: 0; }
+.changes-files { border-right: 1px solid var(--plan-rule); }
+.changes-files ul { margin-top: 12px; max-height: 380px; overflow: auto; }
+.changes-files li { display: flex; gap: 8px; align-items: start; padding: 8px 0; border-top: 1px solid var(--plan-rule); overflow-wrap: anywhere; }
+.changes-files input { margin-top: 8px; accent-color: #6600cc; flex-shrink: 0; }
+.changes-status { min-width: 24px; padding-top: 5px; }
+.changes-diff pre { background: #f1f0eb; margin-top: 12px; padding: 12px; font: 12px/1.5 ui-monospace, Consolas, monospace; max-height: 400px; overflow: auto; white-space: pre; }
+.changes-form { margin-top: 20px; display: grid; gap: 16px; }
+.changes-form label { display: block; font-weight: bold; margin-bottom: 8px; }
+.changes-form :is(textarea, input) { width: 100%; border: 1px solid var(--plan-rule); background: #fffefb; color: #0a0a0a; border-radius: 0; padding: 8px; font: inherit; }
+.changes-form :is(textarea, input):focus-visible { outline: 2px solid #6600cc; outline-offset: 2px; }
+.changes-submit { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.changes-submit .plan-primary { width: auto; min-width: 220px; }
+.changes-success { color: #167044; padding: 12px 0; overflow-wrap: anywhere; }
+@media (max-width: 800px) { .changes-layout { grid-template-columns: minmax(0, 1fr); } .changes-files { border-right: 0; border-bottom: 1px solid var(--plan-rule); } .changes-submit { align-items: stretch; } }
