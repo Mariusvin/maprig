@@ -105,10 +105,9 @@ seatRoutes.get("/status/:seatRef", (c) => {
   return c.json(result, 404);
 });
 
-seatRoutes.post("/handover/:seatRef", async (c) => {
-  const body: Record<string, unknown> = await c.req.json().catch(() => ({}));
+export function seatHandoverService(c: { get(key: never): unknown }): SeatHandoverService {
   const rigRepo = c.get("rigRepo" as never) as RigRepository;
-  const service = new SeatHandoverService({
+  return new SeatHandoverService({
     db: rigRepo.db,
     rigRepo,
     sessionRegistry: c.get("sessionRegistry" as never) as SessionRegistry,
@@ -195,7 +194,11 @@ seatRoutes.post("/handover/:seatRef", async (c) => {
     // promoted rung authority. Optional in the deps contract; ALWAYS wired here.
     activityOracle: (c.get("seatActivityService" as never) as import("../domain/seat-activity-service.js").SeatActivityService | undefined) ?? undefined,
   });
-  const result = await service.handover({
+}
+
+seatRoutes.post("/handover/:seatRef", async (c) => {
+  const body: Record<string, unknown> = await c.req.json().catch(() => ({}));
+  const result = await seatHandoverService(c).handover({
     seatRef: c.req.param("seatRef")!,
     reason: typeof body["reason"] === "string" ? body["reason"] : null,
     source: typeof body["source"] === "string" ? body["source"] : null,

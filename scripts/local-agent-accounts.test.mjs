@@ -150,6 +150,16 @@ test('invalid option/action combinations fail before connecting to Docker', asyn
   }
 });
 
+test('applying saved settings resumes one rig without replacing the active account', async () => {
+  const {deps,effects}=harness();
+  const base=deps.store;
+  deps.store=async(method,args)=>method==='accountStatus'?{active:'second',accounts:[{name:'second',loginPresent:true}]}:base(method,args);
+  const result=await switchLocalAccount({provider:'claude',account:'second',resumeRig:'rig-1'},deps);
+  assert.equal(result.outcome,'resumed');
+  assert(effects.some(e=>e[0]==='rig'&&e[1][0]==='up'));
+  assert(!effects.some(e=>e[0]==='store'&&['activateAccount','assertNoNativeProcesses'].includes(e[1])));
+});
+
 test('Docker transport keeps a live lock owner through native selection and rig resume', { skip: process.platform !== 'linux' }, t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'account-transport-'));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));

@@ -15,7 +15,7 @@ export async function switchLocalAccount(options, deps) {
   try {
     const before = await deps.store('accountStatus', [provider]);
     if (before.recoveryRequired) throw Error('previous_switch_requires_recovery');
-    if (before.active === account && before.accounts?.some(a => a.name === account && a.loginPresent)) return { outcome: 'unchanged', provider, active: account };
+    if (!options.resumeRig && before.active === account && before.accounts?.some(a => a.name === account && a.loginPresent)) return { outcome: 'unchanged', provider, active: account };
     return await switchWithLease(options, deps, before);
   }
   finally { await deps.store('releaseSwitchLease', [provider, lease.leaseId]); }
@@ -28,7 +28,9 @@ async function switchWithLease(options, deps, before) {
   if (!target.fingerprint) throw Error('account_identity_unavailable');
   const nodes = await deps.rig(['ps', '--nodes', '-A', '--json']);
   if (!Array.isArray(nodes)) throw Error('seat_inventory_unavailable');
-  const affected = nodes.filter(n => n.runtime === RUNTIME[provider] && LIVE.has(n.sessionStatus));
+  const changingAccount = before.active !== account;
+  const affected = nodes.filter(n => n.runtime === RUNTIME[provider] && LIVE.has(n.sessionStatus)
+    && (changingAccount || !options.resumeRig || n.rigId === options.resumeRig));
   const rigs = [...new Set(affected.map(n => n.rigId))];
   const names = new Map(rigs.map(id => [id, nodes.find(n => n.rigId === id)?.rigName]));
   if (rigs.some(id => typeof names.get(id) !== 'string' || !names.get(id) || nodes.some(n => n.rigId !== id && n.rigName === names.get(id)))) throw Error('rig_name_unavailable_or_ambiguous');
@@ -49,11 +51,13 @@ async function switchWithLease(options, deps, before) {
       stopping = null;
       if (!down.snapshotId || down.errors?.length) throw Error('snapshot_or_stop_incomplete');
     }
-    await deps.store('assertNoNativeProcesses', [provider]);
+    if (changingAccount) await deps.store('assertNoNativeProcesses', [provider]);
     // Recheck after stopping: a concurrent selection must never be overwritten.
     if ((await deps.store('accountStatus', [provider])).active !== before.active) throw Error('account_selection_changed');
-    activationAttempted = true;
-    await deps.store('activateAccount', [provider, account]);
+    if (changingAccount) {
+      activationAttempted = true;
+      await deps.store('activateAccount', [provider, account]);
+    }
     activated = true;
     const selected = await deps.store('checkAccount', [provider, account]);
     if (!selected.loggedIn || selected.fingerprint !== target.fingerprint) throw Error('selected_account_unverified');

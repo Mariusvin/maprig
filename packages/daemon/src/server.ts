@@ -143,6 +143,7 @@ import type { WorkflowRuntime } from "./domain/workflow-runtime.js";
 import { envRoutes } from "./routes/env.js";
 import type { RigLifecycleService } from "./domain/rig-lifecycle-service.js";
 import { seatRoutes } from "./routes/seat.js";
+import { brainSettingsRoutes } from './routes/brain-settings.js';
 import { createRouteTimingMiddleware } from "./domain/route-timing-recorder.js";
 import { browserBoundary, type BrowserBoundaryOptions } from "./middleware/browser-boundary.js";
 
@@ -787,6 +788,7 @@ export function createApp(deps: AppDeps): Hono {
   // is not set in context until the collection/service seam (C) wires it (until then -> 503).
   app.route("/api/provider", providerRoutes());
   app.route("/api/seat", seatRoutes);
+  app.route('/api/brain', brainSettingsRoutes());
   app.route("/api/rigs/:rigId/chat", chatRoutes());
   app.route("/api/stream", streamRoutes());
   app.route("/api/queue", queueRoutes());

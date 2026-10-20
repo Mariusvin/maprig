@@ -106,6 +106,7 @@ interface NodeRow {
   // #75: the seat's authored reasoning effort (nodes.effort). The successor binding reads the shared
   // resolver (OPR.0.7.0.7: a saved seat choice first), not this column alone.
   effort: string | null;
+  brainSettings?: { runtime: string; model: string | null; effort: string | null };
 }
 
 interface SessionRow {
@@ -207,6 +208,7 @@ interface SeatHandoverServiceDeps {
 }
 
 export class SeatHandoverService {
+  private readonly runtimeAdapters: Record<string, RuntimeAdapter>;
   private db: Database.Database;
   private statusService: SeatStatusService;
   private planner: SeatHandoverPlanner;
@@ -230,6 +232,7 @@ export class SeatHandoverService {
   private pluginsDir: string | undefined;
 
   constructor(deps: SeatHandoverServiceDeps) {
+    this.runtimeAdapters = deps.runtimeAdapters ?? {};
     if (deps.db !== deps.rigRepo.db) throw new Error("SeatHandoverService: rigRepo must share the same db handle");
     if (deps.db !== deps.sessionRegistry.db) throw new Error("SeatHandoverService: sessionRegistry must share the same db handle");
     if (deps.db !== deps.discoveryRepo.db) throw new Error("SeatHandoverService: discoveryRepo must share the same db handle");
@@ -276,6 +279,7 @@ export class SeatHandoverService {
     source?: string | null;
     operator?: string | null;
     dryRun?: boolean;
+    successorSettings?: { runtime: 'codex' | 'claude-code'; model: string | null; effort: string | null };
   }): Promise<SeatHandoverResult> {
     if (input.dryRun) {
       const planResult = this.planner.plan({ ...input, dryRun: true });
@@ -318,6 +322,13 @@ export class SeatHandoverService {
     const parsed = parseHandoverSource(input.source);
     if (!parsed.ok) {
       return parsed;
+    }
+    if (input.successorSettings && (parsed.source.mode !== 'rebuild'
+      || !['codex', 'claude-code'].includes(input.successorSettings.runtime)
+      || !this.runtimeAdapters[input.successorSettings.runtime]
+      || (input.successorSettings.model !== null && !/^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,127}$/.test(input.successorSettings.model))
+      || (input.successorSettings.effort !== null && !/^[a-z][a-z0-9_-]{0,31}$/.test(input.successorSettings.effort)))) {
+      return { ok: false, code: 'invalid_source', message: 'Target brain settings require an available runtime and a rebuild handover.', guidance: 'Review the provider, model and effort before retrying.' };
     }
     // OPR.0.5.5.5 — execution dispatches on the SAME capability table the
     // dry-run plan renders from, so the plan can never promise a source the
@@ -439,6 +450,9 @@ export class SeatHandoverService {
     // resolver must not crash the handover — its null becomes a named unavailable like every other.
     const predecessorRecapResolution: PredecessorRecapResolution =
       rawRecapResolution ?? { unavailableReason: this.predecessorRecapResolver ? "recap resolver returned no result" : "no recap resolver wired on this daemon" };
+    const successorNode: NodeRow = input.successorSettings
+      ? { ...node, ...input.successorSettings, codex_config_profile: null, brainSettings: input.successorSettings }
+      : node;
 
     // 2. Respawn the successor INTO the retiree's pane and launch it into a LIVE, READY agent (§2.1b
     //    seam, B1): resolve departing pane -> respawn-pane in place (preserved name) -> real runtime
@@ -451,23 +465,23 @@ export class SeatHandoverService {
       ?? "floor"; // R2 terminal: absence = the locked floor on the continuity edge too
     let permissionOverride: ReturnType<NativePermissionStore["launchOverride"]>;
     try {
-      permissionOverride = new NativePermissionStore(this.db).launchOverride(node.id, node.runtime ?? "");
+      permissionOverride = new NativePermissionStore(this.db).launchOverride(node.id, successorNode.runtime ?? "");
     } catch (error) { return { ok: false, code: "successor_create_failed", message: `Permission selection: ${(error as Error).message}`,
       guidance: "No successor was created. Inspect the seat permission selection before a separately authorized retry." }; }
     const effectivePosture = permissionOverride.launchPosture ?? successorPosture;
-    const effectivePermissionMode = permissionOverride.permissionMode ?? (effectivePosture === "auto" && node.runtime === "claude-code" ? "auto" : undefined);
+    const effectivePermissionMode = permissionOverride.permissionMode ?? (effectivePosture === "auto" && successorNode.runtime === "claude-code" ? "auto" : undefined);
     // The successor must carry its own generation from its first byte. This reservation writes no
     // ledger row; commit consumes it, while every failed pre-commit branch remains unregistered.
     const occupantGeneration = this.sessionRegistry.reserveOccupantGeneration();
-    const corePluginDir = seatCorePluginDir(node, this.db, undefined, this.pluginsDir);
-    const codexCorePluginDir = seatCodexCorePluginDir(node, this.db, undefined, this.pluginsDir);
+    const corePluginDir = seatCorePluginDir(successorNode, this.db, undefined, this.pluginsDir);
+    const codexCorePluginDir = seatCodexCorePluginDir(successorNode, this.db, undefined, this.pluginsDir);
     const launch = await this.successorLauncher.createSuccessor({
       // Seam B: the successor is the SAME seat continuing — persisted policy posture carries.
       // 0.5.2-07 model fidelity: carry the seat's SPEC-pinned model so the successor launch reads the
       // spec (else the running topology drifts from the founder-designed one at every handover).
       // A4-profile: likewise carry the codex config profile (adapter emits -p) — the restore path
       // already threads it; handover must too, or a profile-pinned codex seat reverts at handover.
-      node: { id: node.id, runtime: node.runtime, cwd: node.cwd, kernelAuthority: permissionOverride.kernelAuthority, teamPermissionDefault: permissionOverride.teamPermissionDefault, nonInterruptive: this.rigRepo.getRigNonInterruptive(statusResult.status.rig_id), launchPosture: effectivePosture, ...(effectivePermissionMode ? { permissionMode: effectivePermissionMode } : {}), model: node.model, effort: readSeatEffort(this.db, node.id)?.effective ?? undefined, codexConfigProfile: node.codex_config_profile ?? undefined, seatEnv: withCorePlugin(this.rigRepo.getEffectiveSeatEnv(node.id), corePluginDir), ...((corePluginDir || codexCorePluginDir) && node.cwd ? { seatProjectDir: node.cwd } : {}) },
+      node: { id: node.id, runtime: successorNode.runtime, cwd: node.cwd, kernelAuthority: permissionOverride.kernelAuthority, teamPermissionDefault: permissionOverride.teamPermissionDefault, nonInterruptive: this.rigRepo.getRigNonInterruptive(statusResult.status.rig_id), launchPosture: effectivePosture, ...(effectivePermissionMode ? { permissionMode: effectivePermissionMode } : {}), model: successorNode.model, effort: input.successorSettings ? input.successorSettings.effort ?? undefined : readSeatEffort(this.db, node.id)?.effective ?? undefined, codexConfigProfile: successorNode.codex_config_profile ?? undefined, seatEnv: withCorePlugin(this.rigRepo.getEffectiveSeatEnv(node.id), corePluginDir), ...((corePluginDir || codexCorePluginDir) && node.cwd ? { seatProjectDir: node.cwd } : {}) },
       departingSessionName: latestSession.session_name,
       occupantGeneration,
       // OPR.0.5.5.5: a fork-sourced successor launches as a NATIVE FORK of the
@@ -605,7 +619,7 @@ export class SeatHandoverService {
     return this.finalizeWithDiscovered({
       seatRef: input.seatRef,
       status: statusResult.status,
-      node,
+      node: successorNode,
       latestSession,
       discoveredRef: launch.discoveredId,
       reportedSource: parsed.source,
@@ -957,6 +971,16 @@ export class SeatHandoverService {
   }): SeatHandoverResult {
     const handoverAt = this.now().toISOString();
     const tx = this.db.transaction(() => {
+      const brainEvents:PersistedEvent[]=[];
+      if (input.node.brainSettings) {
+        const settings = input.node.brainSettings;
+        const before=this.db.prepare('SELECT model,effort_choice FROM nodes WHERE id=?').get(input.node.id) as {model:string|null;effort_choice:string|null};
+        this.db.prepare('UPDATE nodes SET runtime=?, model=?, effort=NULL, effort_choice=?, codex_config_profile=NULL WHERE id=?')
+          .run(settings.runtime, settings.model, settings.effort, input.node.id);
+        this.db.prepare('UPDATE node_startup_context SET runtime=? WHERE node_id=?').run(settings.runtime,input.node.id);
+        brainEvents.push(this.eventBus.persistWithinTransaction({type:'node.model_changed',rigId:input.status.rig_id,nodeId:input.node.id,logicalId:input.status.logical_id,from:before.model,to:settings.model,reason:input.reason,operator:input.operator}));
+        brainEvents.push(this.eventBus.persistWithinTransaction({type:'node.effort_changed',rigId:input.status.rig_id,nodeId:input.node.id,logicalId:input.status.logical_id,from:before.effort_choice,to:settings.effort,reason:input.reason,operator:input.operator}));
+      }
       const rows = this.db.prepare(
         "SELECT id FROM sessions WHERE node_id = ? AND status NOT IN ('superseded', 'detached', 'exited') ORDER BY id"
       ).all(input.node.id) as Array<{ id: string }>;
@@ -1053,11 +1077,12 @@ export class SeatHandoverService {
         reason: input.reason,
         operator: input.operator,
         ...(input.sourceOutcome ? { sourceOutcome: input.sourceOutcome } : {}),
+        ...(input.node.brainSettings ? { brainSettings: input.node.brainSettings } : {}),
       });
-      return { newSessionId: newSession.id, previousSessionIdsSuperseded, event };
+      return { newSessionId: newSession.id, previousSessionIdsSuperseded, event, brainEvents };
     });
 
-    let committed: { newSessionId: string; previousSessionIdsSuperseded: string[]; event: PersistedEvent };
+    let committed: { newSessionId: string; previousSessionIdsSuperseded: string[]; event: PersistedEvent; brainEvents:PersistedEvent[] };
     try {
       committed = tx();
       // S19 ruling 01530 — the SOLE narrow call: after the commit lands, the activity
@@ -1073,6 +1098,7 @@ export class SeatHandoverService {
       };
     }
 
+    for(const event of committed.brainEvents)this.eventBus.notifySubscribers(event);
     this.eventBus.notifySubscribers(committed.event);
     const postStatus = this.statusService.getStatus(`${input.status.logical_id}@${input.status.rig_name}`);
     const currentStatus = postStatus.ok
@@ -1111,7 +1137,7 @@ export class SeatHandoverService {
           logicalId: input.status.logical_id,
           podId: input.status.pod_id,
           podNamespace: input.status.pod_namespace,
-          runtime: input.status.runtime,
+          runtime: input.node.runtime,
         },
         source: input.reportedSource,
         reason: input.reason,

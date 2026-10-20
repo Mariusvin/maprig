@@ -160,6 +160,36 @@ describe("SeatHandoverService", () => {
     ])));
   }
 
+  it('switches a provider through a fresh handoff and persists settings only after successor verification', async () => {
+    const { node } = seedSeat({ model: 'fixture-old', effort: 'medium' });
+    db.prepare("INSERT INTO node_startup_context(node_id,projection_entries_json,resolved_files_json,startup_actions_json,runtime) VALUES(?,'[]','[]','[]','codex')").run(node.id);
+    const claudeLaunch = vi.fn(async () => ({ ok: true, resumeToken: '11111111-1111-4111-8111-111111111111', resumeType: 'claude_id' }));
+    const cross = new SeatHandoverService({ db, rigRepo, sessionRegistry, discoveryRepo, eventBus, tmuxAdapter: tmux(),
+      runtimeAdapters: { codex: codexAdapter(), 'claude-code': { runtime: 'claude-code', launchHarness: claudeLaunch, checkReady } as unknown as RuntimeAdapter },
+      predecessorRecapResolver: resolvePredecessorRecap as never, readinessTimeoutMs: 50, sleep: async () => {},
+    });
+    claudeLaunch.mockImplementationOnce(async () => {
+      expect((db.prepare('SELECT runtime FROM nodes WHERE id = ?').get(node.id) as {runtime:string}).runtime).toBe('codex');
+      return { ok: true, resumeToken: '11111111-1111-4111-8111-111111111111', resumeType: 'claude_id' };
+    });
+    const result = await cross.handover({ seatRef: 'dev-impl@seat-rig', source: 'rebuild', reason: 'Brain settings',
+      successorSettings: { runtime: 'claude-code', model: 'sonnet', effort: 'high' } });
+    expect(result.ok).toBe(true);
+    expect(claudeLaunch).toHaveBeenCalled();
+    expect(db.prepare('SELECT runtime,model,effort_choice FROM nodes WHERE id = ?').get(node.id)).toMatchObject({ runtime:'claude-code', model:'sonnet', effort_choice:'high' });
+    expect(db.prepare('SELECT runtime FROM node_startup_context WHERE node_id=?').get(node.id)).toMatchObject({runtime:'claude-code'});
+    expect(db.prepare("SELECT payload FROM events WHERE type='node.effort_changed' ORDER BY seq DESC LIMIT 1").get()).toBeDefined();
+    expect(sendText.mock.calls.some(call => String(call[1]).includes('Seat rebuild handover'))).toBe(true);
+    expect(resolvePredecessorRecap).toHaveBeenCalledWith(expect.objectContaining({runtime:'codex'}));
+  });
+
+  it('does not persist provider changes when the successor fails', async () => {
+    const {node}=seedSeat();
+    const result=await service.handover({seatRef:'dev-impl@seat-rig',source:'rebuild',reason:'Brain settings',successorSettings:{runtime:'claude-code',model:null,effort:null}});
+    expect(result.ok).toBe(false);
+    expect(db.prepare('SELECT runtime FROM nodes WHERE id = ?').get(node.id)).toMatchObject({runtime:'codex'});
+  });
+
   it("binds an active seat to an already-created discovered successor", async () => {
     const { rig, node, sessionId } = seedSeat();
     const discovered = seedDiscovery();

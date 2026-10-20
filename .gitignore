@@ -42,6 +42,7 @@ demo/proof/
 # OPR.0.5.3.7 R2 — the shipped context-pack projection is DERIVED AT PACKAGE TIME
 # (scripts/generate-context-packs.mjs), never committed or edited in place.
 packages/daemon/context-packs/
+packages/daemon/assets/local-agents/
 
 # Internal build receipts; never commit
 /.evidence/

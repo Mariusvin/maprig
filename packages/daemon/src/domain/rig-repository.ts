@@ -511,7 +511,7 @@ export class RigRepository {
   /** S5 (OPR.0.5.4.7) — the first supported nodes.model write (the inventory was insert-only;
    *  KI-5.3-9). Every managed resume/successor launch reads node.model at call time, so this
    *  UPDATE is the complete persistence half of set-model. Returns whether a row changed. */
-  setNodeModel(nodeId: string, model: string): boolean {
+  setNodeModel(nodeId: string, model: string | null): boolean {
     const result = this.db
       .prepare("UPDATE nodes SET model = ? WHERE id = ?")
       .run(model, nodeId);
