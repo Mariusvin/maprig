@@ -287,4 +287,53 @@ describe("project Git routes", () => {
     expect((await response.json()).message).toContain("commit rejected by test hook");
     expect(git(repository, "rev-parse", "HEAD")).toBe(current.head);
   });
+
+  it("refuses to finalize an unresolved merge and preserves its index and operation state", async () => {
+    const { app, repository } = fixture(".");
+    seedCommit(repository, { "conflict.txt": "base\n" });
+    const branch = git(repository, "symbolic-ref", "--short", "HEAD");
+    git(repository, "checkout", "-q", "-b", "incoming");
+    fs.writeFileSync(path.join(repository, "conflict.txt"), "incoming\n");
+    git(repository, "add", "conflict.txt"); git(repository, "commit", "-qm", "Incoming");
+    git(repository, "checkout", "-q", branch);
+    fs.writeFileSync(path.join(repository, "conflict.txt"), "current\n");
+    git(repository, "add", "conflict.txt"); git(repository, "commit", "-qm", "Current");
+    expect(() => git(repository, "merge", "incoming")).toThrow();
+    const before = git(repository, "ls-files", "--stage");
+    const current = await state(app);
+    expect(current.operation).toBe("MERGE_HEAD");
+    const response = await commit(app, { message: "Must not finalize merge", paths: ["conflict.txt"], expectedHead: current.head, expectedFingerprint: current.fingerprint });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("git_operation_active");
+    expect(git(repository, "ls-files", "--stage")).toBe(before);
+    expect(git(repository, "rev-parse", "HEAD")).toBe(current.head);
+    expect(fs.existsSync(path.join(repository, ".git", "MERGE_HEAD"))).toBe(true);
+  });
+
+  it("rejects an operation started after the status read", async () => {
+    const { app, repository } = fixture(".");
+    seedCommit(repository, { "file.txt": "base\n" });
+    fs.writeFileSync(path.join(repository, "file.txt"), "changed\n");
+    const current = await state(app);
+    fs.mkdirSync(path.join(repository, ".git", "rebase-merge"));
+    const response = await commit(app, { message: "Must not interrupt rebase", paths: ["file.txt"], expectedHead: current.head, expectedFingerprint: current.fingerprint });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("git_operation_active");
+    expect(git(repository, "rev-parse", "HEAD")).toBe(current.head);
+  });
+
+  it.skipIf(process.platform === "win32")("preserves a literal POSIX backslash filename through status, diff and commit", async () => {
+    const { app, repository } = fixture(".");
+    seedCommit(repository, { "base.txt": "base\n" });
+    const filename = "literal\\name.txt";
+    fs.writeFileSync(path.join(repository, filename), "literal filename\n");
+    const current = await state(app);
+    expect(current.changes.map((item: { path: string }) => item.path)).toContain(filename);
+    const diff = await app.request(`/api/project-git/demo/diff?path=${encodeURIComponent(filename)}`);
+    expect(diff.status).toBe(200);
+    expect((await diff.json()).diff).toContain("+literal filename");
+    const response = await commit(app, { message: "Preserve literal filename", paths: [filename], expectedHead: current.head, expectedFingerprint: current.fingerprint });
+    expect(response.status).toBe(200);
+    expect(git(repository, "show", `HEAD:${filename}`)).toBe("literal filename");
+  });
 });

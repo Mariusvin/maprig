@@ -92,6 +92,8 @@ content fingerprint, so a stale view must be refreshed. Selected paths are
 committed through a temporary index; unrelated previously staged paths remain
 staged. Git hooks remain enabled. Missing identity or a failed hook is reported
 as a failed operation, with no fabricated commit success.
+An active merge, rebase, cherry-pick or revert must be completed or aborted first;
+the selected-file workflow never finalizes those operations on the user's behalf.
 
 The copy is a working source snapshot rather than proof that all original
 applications can already run on the new paths. Dependency installation,

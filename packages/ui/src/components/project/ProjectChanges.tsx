@@ -9,6 +9,7 @@ interface GitStatus {
   repository: string; head: string | null; branch: string;
   identity: { name: string | null; email: string | null };
   changes: Array<{ path: string; status: string }>; fingerprint: string;
+  operation?: string | null;
 }
 async function json<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -46,7 +47,7 @@ export function ProjectChanges({ projectId }: { projectId?: string }) {
   return <main className="planning-workspace" data-testid="project-changes">
     <header className="plan-header"><div><div className="plan-eyebrow">PROJECT / CHANGES</div><h1>Local commits</h1></div>
       <Link className="plan-link" to="/project/plan" search={{ project: id }}>Back to plan</Link></header>
-    <div className="plan-toolbar"><label>Project <select aria-label="Commit project" value={id ?? ""} onChange={event => {
+    <div className="plan-toolbar"><label>Project <select aria-label="Commit project" disabled={commit.isPending} value={id ?? ""} onChange={event => {
       setSelected([]); setPreview(null); setCreated(null); commit.reset();
       void navigate({ to: "/project/changes", search: { project: event.target.value } });
     }}>{catalog.data?.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
@@ -56,6 +57,7 @@ export function ProjectChanges({ projectId }: { projectId?: string }) {
     {created && <p className="changes-success" role="status">Local commit created: {created}</p>}
     {status.isLoading && <p>Reading repository changes...</p>}
     {status.data && <>
+      {status.data.operation && <p role="alert" className="plan-error">A Git operation is active ({status.data.operation}). Complete or abort it before creating a selected-file commit.</p>}
       <p className="changes-intro">Review the diff, select files and create a commit in this project's repository.</p>
       <div className="changes-layout"><section aria-label="Changed files" className="changes-files">
         <h2>Changed files / {status.data.changes.length}</h2>
@@ -73,7 +75,7 @@ export function ProjectChanges({ projectId }: { projectId?: string }) {
         <div><label htmlFor="commit-token">Operator token</label><input id="commit-token" type="password" autoComplete="off" value={token} onChange={event => setToken(event.target.value)} />
           <p className="plan-sync">Used for this action. Enter the existing local operator token if required.</p></div>
         <div className="changes-submit"><span>Author: {status.data.identity.name ?? "Not configured"}{status.data.identity.email ? ` <${status.data.identity.email}>` : ""}</span>
-          <button type="submit" className="plan-primary" disabled={commit.isPending || !paths.length || !message.trim() || !status.data.identity.name || !status.data.identity.email}>{commit.isPending ? "Creating commit..." : `Commit ${paths.length} selected ${paths.length === 1 ? "file" : "files"}`}</button></div>
+          <button type="submit" className="plan-primary" disabled={commit.isPending || !!status.data.operation || !paths.length || !message.trim() || !status.data.identity.name || !status.data.identity.email}>{commit.isPending ? "Creating commit..." : `Commit ${paths.length} selected ${paths.length === 1 ? "file" : "files"}`}</button></div>
       </form>
       <details className="plan-source"><summary>Repository location</summary>{status.data.repository}</details>
     </>}

@@ -25,6 +25,7 @@ export interface ProjectGitState {
   identity: { name: string | null; email: string | null };
   changes: ProjectGitChange[];
   fingerprint: string;
+  operation: string | null;
 }
 
 export interface ProjectGitCommitInput {
@@ -197,12 +198,12 @@ function normalizeGitPath(input: string): string {
   if (typeof input !== "string" || input.length === 0 || input.includes("\0")) {
     throw new ProjectGitError("invalid_path", "Each Git path must be a non-empty repository-relative path.", 400);
   }
-  const normalized = input.replace(/\\/g, "/");
+  const normalized = process.platform === "win32" ? input.replace(/\\/g, "/") : input;
   const segments = normalized.split("/");
   if (
     normalized.startsWith("/") ||
     path.isAbsolute(input) ||
-    path.win32.isAbsolute(input) ||
+    (process.platform === "win32" && path.win32.isAbsolute(input)) ||
     segments.some(segment => segment === "" || segment === "." || segment === ".." || segment.toLowerCase() === ".git")
   ) {
     throw new ProjectGitError("invalid_path", `Git path must stay inside the repository and cannot select .git: ${input}`, 400);
@@ -305,11 +306,22 @@ function readWorktreeValue(repository: string, changePath: string): Buffer {
   return Buffer.from(`other\0${metadata.toString("utf8")}`, "utf8");
 }
 
-function readIndexValue(repository: string, changePath: string): Buffer {
-  return requireGit(repository, ["ls-files", "--stage", "-z", "--", changePath], {
+function readIndexValue(repository: string): Buffer {
+  return requireGit(repository, ["ls-files", "--stage", "-z"], {
     env: { GIT_OPTIONAL_LOCKS: "0" },
     message: "Could not read project Git index",
   });
+}
+
+function activeOperation(repository: string): string | null {
+  const gitDir = requireGit(repository, ["rev-parse", "--absolute-git-dir"], { message: "Could not resolve repository operation state" }).toString("utf8").trim();
+  const markers = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"];
+  return markers.find(marker => fs.existsSync(path.join(gitDir, marker))) ?? null;
+}
+
+function requireNoOperation(repository: string): void {
+  const operation = activeOperation(repository);
+  if (operation) throw new ProjectGitError("git_operation_active", `A Git operation is active (${operation}). Complete or abort it before creating a selected-file commit.`);
 }
 
 function readHead(repository: string): { head: string | null; branch: string } {
@@ -356,10 +368,11 @@ function calculateFingerprint(
   part(branch);
   part(identity.name ?? "<missing-name>");
   part(identity.email ?? "<missing-email>");
+  part(activeOperation(repository) ?? "<no-operation>");
+  part(readIndexValue(repository));
   for (const change of changes) {
     part(change.status);
     part(change.path);
-    part(readIndexValue(repository, change.path));
     part(readWorktreeValue(repository, change.path));
   }
   return hash.digest("hex");
@@ -376,6 +389,7 @@ function inspectRepository(repository: string): ProjectGitState {
     identity,
     changes: changes.map(({ path: changedPath, status }) => ({ path: changedPath, status })),
     fingerprint: calculateFingerprint(repository, head, branch, identity, changes),
+    operation: activeOperation(repository),
   };
 }
 
@@ -461,6 +475,7 @@ function gitCommitError(result: GitResult): ProjectGitError {
 /** Commit selected worktree paths from an isolated index, leaving unrelated staged entries intact. */
 export function commitProjectGitChanges(repository: string, input: ProjectGitCommitInput): Promise<{ commit: string; remainingChanges: number }> {
   return withRepositoryLock(repository, () => {
+    requireNoOperation(repository);
     const request = validateCommitInput(input);
     const initial = inspectRepository(repository);
     if (initial.head !== request.expectedHead || initial.fingerprint !== request.expectedFingerprint) {
@@ -487,6 +502,7 @@ export function commitProjectGitChanges(repository: string, input: ProjectGitCom
         throw new ProjectGitError("project_git_stale", "Project files or Git state changed while the commit was being prepared. Refresh the project status.");
       }
 
+      requireNoOperation(repository);
       const commitResult = runGitAt(repository, ["commit", "-m", request.message], env);
       if (commitResult.status !== 0) throw gitCommitError(commitResult);
 
