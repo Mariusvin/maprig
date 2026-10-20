@@ -12,7 +12,9 @@ export interface PlanNode {
 }
 export interface PlanGraph { id: string; title: string; level: number; parentNodeId?: string; nodes: PlanNode[] }
 export interface PlanProject { id: string; name: string; summary?: string; rootGraphId: string; graphs: PlanGraph[]; updatedAt?: string }
-interface PlanResponse { project: PlanProject; source: { path: string; sha256: string; readAt: string; mode: string } }
+type PlanSourceKind = "maproom" | "openrig";
+interface PlanResponse { project: PlanProject; source: { kind: PlanSourceKind; path: string; sha256: string; readAt: string; mode: string } }
+interface PlanCatalogProject { id: string; name: string; source: { kind: PlanSourceKind } }
 export interface PlanSearch { project?: string; graph?: string; node?: string }
 
 async function readJson<T>(url: string): Promise<T> {
@@ -22,7 +24,7 @@ async function readJson<T>(url: string): Promise<T> {
   return body as T;
 }
 export function usePlanningProjects() {
-  return useQuery({ queryKey: ["planning-projects"], queryFn: () => readJson<{ projects: Array<{ id: string; name: string }> }>("/api/planning"), refetchInterval: 10000 });
+  return useQuery({ queryKey: ["planning-projects"], queryFn: () => readJson<{ projects: PlanCatalogProject[] }>("/api/planning"), refetchInterval: 10000 });
 }
 export function graphTrail(project: PlanProject, graph: PlanGraph): PlanGraph[] {
   const trail = [graph];
@@ -49,6 +51,7 @@ function PlanGraphNode({ data, selected }: NodeProps<FlowNode>) {
   </div>;
 }
 const nodeTypes = { plan: PlanGraphNode };
+const sourceLabel = (kind: PlanSourceKind) => kind === "openrig" ? "OpenRig" : "Maproom";
 function FocusSelectedTask({ id }: { id?: string }) {
   const ready = useNodesInitialized();
   const { fitView } = useReactFlow();
@@ -75,19 +78,22 @@ export function PlanningGraph({ search }: { search: PlanSearch }) {
   return <main className="planning-workspace" data-testid="planning-workspace">
     <header className="plan-header">
       <div><div className="plan-eyebrow">PROJECT / PLANNING</div><h1>{project?.name ?? "Project plans"}</h1></div>
-      <Link to="/project" search={{ view: "execution" }} className="plan-link">Execution workspace</Link>
+      <div>
+        <Link to="/project" search={{ view: "execution" }} className="plan-link">Execution workspace</Link>
+        {projectId && <> / <a className="plan-link" href={`/project/changes?project=${encodeURIComponent(projectId)}`}>Project changes</a></>}
+      </div>
     </header>
     <div className="plan-toolbar">
       <label>Project <select aria-label="Planning project" value={projectId ?? ""} onChange={event => go({ project: event.target.value })}>
         {!projectId && <option value="">Select project</option>}
-        {catalog.data?.projects.map(p => <option key={p.id} value={p.id}>{p.id === project?.id ? project.name : p.name}</option>)}
+        {catalog.data?.projects.map(p => <option key={p.id} value={p.id}>{p.name} / {sourceLabel(p.source.kind)}</option>)}
       </select></label>
       <button type="button" onClick={() => { void catalog.refetch(); void result.refetch(); }} disabled={catalog.isFetching || result.isFetching}>Refresh</button>
-      <span className="plan-sync" role="status">{error ? "Source unavailable" : result.isFetching ? "Reading source..." : project ? "Linked to Maproom / read only / checks every 10s" : ""}</span>
+      <span className="plan-sync" role="status">{error ? "Source unavailable" : result.isFetching ? "Reading source..." : project && result.data ? `Linked to ${sourceLabel(result.data.source.kind)} / read only / checks every 10s` : ""}</span>
     </div>
     {error && <div role="alert" className="plan-error">{error.message}</div>}
     {!error && (catalog.isLoading || (!!projectId && result.isLoading)) && <p>Loading project plan...</p>}
-    {!error && !catalog.isLoading && !projectId && <p>No linked plans. Register a project with a .maproom/project.json source in the workspace catalog.</p>}
+    {!error && !catalog.isLoading && !projectId && <p>No linked plans. Register a project with a planning.json or .maproom/project.json source in the workspace catalog.</p>}
     {project && <>
       {project.summary && <details className="plan-brief"><summary>Project brief and current checkpoint</summary><p className="plan-summary">{project.summary}</p></details>}
       {graph ? <>
@@ -119,7 +125,7 @@ export function PlanningGraph({ search }: { search: PlanSearch }) {
               })}</ul>}
               {!!selected.references?.length && <><h3>References</h3><ul>{selected.references.map((r, index) => <li key={r?.id ?? index}>{safeUrl(r?.url) ? <a href={r.url} target="_blank" rel="noreferrer">{r.title ?? r.url}</a> : r?.title ?? "Reference without a web link"}</li>)}</ul></>}
               <div className="plan-id">{selected.id}</div>
-            </> : <><h2>Inspect a task</h2><p>Select a node to read its status, prerequisites and evidence. Open its next level to explore the work beneath it.</p><p>Arrows run from prerequisite to dependent task. Percentages retain the values recorded in Maproom.</p></>}
+            </> : <><h2>Inspect a task</h2><p>Select a node to read its status, prerequisites and evidence. Open its next level to explore the work beneath it.</p><p>Arrows run from prerequisite to dependent task. {result.data && <>Percentages retain the values recorded in {sourceLabel(result.data.source.kind)}.</>}</p></>}
           </aside>
         </div>
         <details className="plan-task-index"><summary>Task index - {graph.nodes.length} nodes</summary><ul>{graph.nodes.map(n => <li key={n.id}>

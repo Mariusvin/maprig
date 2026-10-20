@@ -31,6 +31,8 @@ export interface PlanningProject {
   graphs: PlanningGraph[];
   updatedAt?: string;
 }
+export type PlanningSourceKind = "maproom" | "openrig";
+export interface PlanningSourceFile { filename: string; kind: PlanningSourceKind }
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const id = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v);
@@ -40,7 +42,7 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
 /** Validate identities and links without changing authored state or recomputing progress. */
 export function parsePlanningProject(value: unknown, expectedId: string): PlanningProject {
   const fail = (message: string): never => { throw new Error(`Invalid planning source: ${message}`); };
-  if (!object(value) || value.version !== 1 || !object(value.project)) return fail("expected Maproom version 1 project envelope");
+  if (!object(value) || value.version !== 1 || !object(value.project)) return fail("expected version 1 project envelope");
   const p = value.project;
   if (p.id !== expectedId || !id(p.id) || !text(p.name) || !id(p.rootGraphId) || !Array.isArray(p.graphs) || p.graphs.length > 1000 ||
     (p.summary !== undefined && !text(p.summary)) || (p.updatedAt !== undefined && !text(p.updatedAt))) return fail("project identity or graphs");
@@ -78,9 +80,21 @@ export function parsePlanningProject(value: unknown, expectedId: string): Planni
   return project;
 }
 
+/** Maproom data takes precedence when a project has both formats. */
+export function findPlanningProjectSource(entry: Pick<ProjectRead, "root">): PlanningSourceFile | null {
+  const root = fs.realpathSync(entry.root);
+  const maproom = path.join(root, ".maproom", "project.json");
+  if (fs.existsSync(maproom)) return { filename: maproom, kind: "maproom" };
+  const openrig = path.join(root, "planning.json");
+  if (fs.existsSync(openrig)) return { filename: openrig, kind: "openrig" };
+  return null;
+}
+
 export function readPlanningProject(entry: Pick<ProjectRead, "id" | "root">) {
   const root = fs.realpathSync(entry.root);
-  const filename = path.join(root, ".maproom", "project.json");
+  const selected = findPlanningProjectSource({ root });
+  if (!selected) throw new Error(`No planning source found for project ${entry.id}`);
+  const { filename, kind } = selected;
   const canonical = insideProject(root, filename);
   const fd = fs.openSync(canonical, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   let bytes: Buffer;
@@ -93,7 +107,7 @@ export function readPlanningProject(entry: Pick<ProjectRead, "id" | "root">) {
     modifiedAt = info.mtime.toISOString();
   } finally { fs.closeSync(fd); }
   const project = parsePlanningProject(JSON.parse(bytes.toString("utf8")), entry.id);
-  return { project, source: { kind: "maproom" as const, mode: "linked" as const, path: filename,
+  return { project, source: { kind, mode: "linked" as const, path: filename,
     sha256: createHash("sha256").update(bytes).digest("hex"), readAt: new Date().toISOString(),
     modifiedAt } };
 }

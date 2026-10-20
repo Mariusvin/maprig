@@ -15,9 +15,9 @@ const project: PlanProject = { id: "example", name: "Example", rootGraphId: "roo
   { id: "leaf", title: "Leaf", level: 3, parentNodeId: "c", nodes: [] },
 ] };
 afterEach(() => { vi.unstubAllGlobals(); navigate.mockReset(); });
-function setup(node?: string, graph?: string) {
-  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url === "/api/planning" ? { projects: [{ id: "example", name: "Example" }] } :
-    { project, source: { readAt: "2026-10-20T10:00:00Z", path: "/project/.maproom/project.json", sha256: "a".repeat(64), mode: "linked" } } })));
+function setup(node?: string, graph?: string, sourceKind: "maproom" | "openrig" = "maproom") {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url === "/api/planning" ? { projects: [{ id: "example", name: "Example", source: { kind: sourceKind } }] } :
+    { project, source: { kind: sourceKind, readAt: "2026-10-20T10:00:00Z", path: sourceKind === "openrig" ? "/project/planning.json" : "/project/.maproom/project.json", sha256: "a".repeat(64), mode: "linked" } } })));
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PlanningGraph search={{ project: "example", graph, node }} /></QueryClientProvider>);
 }
 describe("planning graph navigation", () => {
@@ -32,6 +32,11 @@ describe("planning graph navigation", () => {
     expect(screen.getByText("Unsafe reference").closest("a")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open L2 graph" }));
     expect(navigate).toHaveBeenCalledWith({ to: "/project/plan", search: { project: "example", graph: "child" } });
+  });
+  it.each([["maproom", "Maproom"], ["openrig", "OpenRig"]] as const)("labels %s sources as %s", async (kind, label) => {
+    setup(undefined, undefined, kind);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain(`Linked to ${label}`));
+    expect(screen.getByRole("option", { name: `Example / ${label}` })).toBeTruthy();
   });
   it("navigates prerequisites without changing source progress", async () => {
     setup("b");
