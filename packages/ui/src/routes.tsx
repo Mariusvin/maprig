@@ -70,6 +70,7 @@ import { WorkflowInstancePage } from "./components/workflow/WorkflowInstancePage
 import { ProjectGraphicsPreview } from "./components/lab/ProjectGraphicsPreview.js";
 import { CardPreviewsLab } from "./components/lab/CardPreviewsLab.js";
 import { VellumLab } from "./components/lab/VellumLab.js";
+import { PlanningGraph, usePlanningProjects } from "./components/project/PlanningGraph.js";
 import {
   VellumBgLarge,
   VellumBgSmall,
@@ -136,7 +137,27 @@ const forYouRoute = createRoute({
 const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/project",
-  component: WorkspaceScopePage,
+  validateSearch: (search: Record<string, unknown>): { view?: "execution" } => ({ view: search.view === "execution" ? "execution" : undefined }),
+  component: ProjectLanding,
+});
+
+function ProjectLanding() {
+  const { view } = useSearch({ from: "/project" });
+  const catalog = usePlanningProjects();
+  if (view !== "execution" && catalog.isLoading) return <div className="p-6 font-mono">Loading project catalog...</div>;
+  if (view !== "execution" && catalog.data?.projects.length) return <PlanningGraph search={{}} />;
+  return <><div className="px-6 pt-4 font-mono text-sm"><a href="/project/plan" className="underline">Planning graphs</a></div><WorkspaceScopePage /></>;
+}
+
+const planningRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/project/plan",
+  validateSearch: (search: Record<string, unknown>): { project?: string; graph?: string; node?: string } => ({
+    project: typeof search.project === "string" ? search.project : undefined,
+    graph: typeof search.graph === "string" ? search.graph : undefined,
+    node: typeof search.node === "string" ? search.node : undefined,
+  }),
+  component: () => <PlanningGraph search={useSearch({ from: "/project/plan" })} />,
 });
 
 const projectMissionRoute = createRoute({
@@ -545,6 +566,7 @@ export const routeTree = rootRoute.addChildren([
   topologySeatRoute,
   forYouRoute,
   projectRoute,
+  planningRoute,
   projectMissionRoute,
   projectSliceRoute,
   rigAgentsRoute,

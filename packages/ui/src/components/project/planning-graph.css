@@ -1,0 +1,48 @@
+.planning-workspace { --plan-ink: #0a0a0a; --plan-rule: #b8b6ae; --plan-violet: #6600cc; background: #fffefb; color: var(--plan-ink); padding: 24px; min-height: 100%; font: 13px/1.5 "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+.planning-workspace h1 { font-size: 30px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
+.planning-workspace h2 { font-size: 17px; font-weight: 700; }
+.planning-workspace h3 { font-size: 13px; font-weight: 700; margin-top: 20px; }
+.plan-header, .plan-toolbar, .plan-graph-heading { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; border-bottom: 1px solid var(--plan-rule); padding-bottom: 12px; }
+.plan-eyebrow, .plan-node-meta, .plan-id { font-size: 11px; text-transform: uppercase; }
+.plan-toolbar { justify-content: flex-start; padding-top: 12px; }
+.planning-workspace button, .planning-workspace select { border: 1px solid var(--plan-rule); background: #fffefb; color: var(--plan-ink); min-height: 34px; padding: 4px 10px; border-radius: 0; font: inherit; }
+.planning-workspace button { cursor: pointer; }
+.planning-workspace button:disabled { cursor: wait; opacity: .6; }
+.planning-workspace :is(button, a, select):focus-visible { outline: 2px solid #6600cc; outline-offset: 3px; }
+.planning-workspace .plan-link, .plan-breadcrumb button { color: var(--plan-violet); text-decoration: underline; border: 0; padding: 0; background: transparent; text-align: left; }
+.plan-sync { font-size: 11px; }
+.plan-summary { max-width: 110ch; margin: 16px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plan-breadcrumb { padding: 8px 0; overflow-wrap: anywhere; }
+.plan-breadcrumb [aria-current] { color: #0a0a0a; font-weight: 700; text-decoration: none; }
+.plan-graph-heading { margin-bottom: 12px; }
+.plan-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; border: 1px solid var(--plan-rule); }
+.plan-canvas { height: 560px; min-width: 0; background: #f1f0eb; }
+.plan-inspector { padding: 16px; border-left: 1px solid var(--plan-rule); max-height: 560px; overflow: auto; overflow-wrap: anywhere; }
+.plan-inspector p { margin: 12px 0; white-space: pre-wrap; }
+.plan-inspector ul { padding-left: 16px; list-style: square; }
+.plan-inspector li { margin-top: 8px; }
+.plan-inspector a { color: #6600cc; text-decoration: underline; }
+.planning-workspace .plan-primary { background: #6600cc; color: #fffefb; width: 100%; border-color: #6600cc; }
+.planning-workspace progress { display: block; width: 100%; height: 5px; appearance: none; border: none; margin: 12px 0; background: #f1f0eb; accent-color: #6600cc; }
+.planning-workspace progress::-webkit-progress-bar { background: #e0ded7; }
+.planning-workspace progress::-webkit-progress-value { background: #6600cc; }
+.plan-node { width: 280px; min-height: 150px; padding: 12px; background: #fffefb; border: 1px solid #0a0a0a; font: 13px/1.4 ui-monospace, Consolas, monospace; color: #0a0a0a; }
+.plan-node-selected { outline: 3px solid #6600cc; outline-offset: 2px; }
+.plan-node[data-status="done"] { border-top: 4px solid #167044; }
+.plan-node[data-status="blocked"] { border-top: 4px solid #b42116; }
+.plan-node-meta { display: flex; justify-content: space-between; gap: 8px; }
+.plan-node-meta strong { font-size: 18px; color: #6600cc; }
+.plan-node-title { font-weight: 700; margin-top: 8px; }
+.plan-node-footer { font-size: 11px; }
+.plan-id { margin-top: 20px; color: #55534d; }
+.plan-task-index { border-bottom: 1px solid var(--plan-rule); padding: 16px 0; }
+.plan-task-index summary, .plan-source summary { cursor: pointer; }
+.plan-task-index li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--plan-rule); }
+.plan-task-index li span { white-space: nowrap; }
+.plan-source { margin-top: 16px; font-size: 11px; overflow-wrap: anywhere; }
+.plan-error { color: #b42116; padding: 12px 0; }
+.plan-canvas .react-flow__controls { box-shadow: none; border: 1px solid #b8b6ae; }
+.plan-canvas .react-flow__controls button { min-height: 30px; width: 30px; padding: 6px; }
+@media (max-width: 1000px) { .plan-layout { grid-template-columns: minmax(0, 1fr); } .plan-inspector { border-left: 0; border-top: 1px solid var(--plan-rule); max-height: none; } .plan-canvas { height: 450px; } }
+@media (max-width: 600px) { .planning-workspace { padding: 16px 12px; } .plan-task-index li { flex-wrap: wrap; gap: 8px; } .plan-toolbar label, .plan-toolbar select { max-width: 100%; } .plan-header h1 { font-size: 28px; } }
+@media (prefers-reduced-motion: reduce) { .planning-workspace * { animation: none !important; transition: none !important; } }
