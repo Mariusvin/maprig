@@ -26,6 +26,10 @@ The script validates the source, then adds its identity and relative root to
 link changes nothing. An ID or root collision stops without writing. It does not
 change the source project or require an OpenRig mission scaffold in that project.
 The source file must resolve inside the registered project directory.
+Concurrent helper registrations use an exclusive workspace lock. If another
+editor changes the catalog before replacement, linking aborts and can be retried.
+A helper interrupted before cleanup can leave `.openrig-maproom-link.lock`;
+inspect its recorded process ID before removing a stale lock.
 
 If `workspace.catalog_path` is customized, register the entry in that catalog
 instead. The helper above targets the default `workspace.yaml` catalog only.
@@ -42,6 +46,10 @@ The view reads the source on opening, on Refresh and every ten seconds while
 visible. It displays the source update time, read time, location and content
 digest. A missing or invalid source produces an error rather than an empty plan
 or a success state. Last loaded content may remain visible beside that error.
+Planning reads inherit the daemon's existing trusted-network read boundary,
+like the native scope source views. The operator bearer protects write integrity,
+not confidentiality of read endpoints. Keep this local installation published
+on loopback; do not expose it as a public plan-sharing service.
 
 ## Isolated Docker installation on Windows
 
