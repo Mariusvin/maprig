@@ -10,6 +10,8 @@ It's the open-source system behind my AI civilization experiments.
 
 **Guide:** [Getting started](docs/reference/quickstart.md) · **Stuck?** [Help](docs/reference/help.md) · **Questions:** [Q&A](https://github.com/mvschwarz/openrig/discussions/92) · **Updates and demos:** [@_feralmachine on X](https://x.com/_feralmachine)
 
+Already using a local agent app or CLI? [Connect it to OpenRig](docs/reference/local-agent-connections.md) through MCP, including a Windows client with a Docker daemon, while keeping its existing model login.
+
 ## See it running
 
 ![The OpenRig TUI: the build rig as a graph, then as a table of seats with runtime, model, context and state, then one seat in detail (real recording, 10 seconds)](assets/readme/openrig-agents-working.gif)
