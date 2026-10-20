@@ -65,6 +65,15 @@ If the server disconnects, inspect the Docker error and confirm the container
 is running. A missing `rig` executable means the selected container does not
 contain the OpenRig CLI. Use its actual executable path when necessary.
 
+If tools are listed but a call reports that approval is required, the connection
+has initialized but the client's tool policy has stopped execution. Approve the
+specific operation in an interactive client, or configure a rule for that tool
+before a non-interactive run. A client that cannot ask for approval will otherwise
+reject the call. For a read-only connection check, allow only `rig_status` and
+retain the other tools' existing approval policies. A tool list or an agent's
+exit code alone does not prove the call succeeded; inspect its returned result
+and any tool error.
+
 ## Seat identity and external sessions
 
 An unbound tool connection can inspect OpenRig. Seat-scoped queue operations
