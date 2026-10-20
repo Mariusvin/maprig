@@ -138,6 +138,15 @@ provider is skipped. Verify the CLI's native login status, then check actual
 managed-seat readiness and send a small task before reporting the brain ready.
 Daemon health or a successful CLI install alone does not prove model access.
 
+A first launch can stop for native hook review. Inspect the pending definitions
+and their installed source before trusting them through the CLI's own review
+screen. Then run `rig seat continue <actual-session-name> --json` for each seat
+whose startup stopped at that gate. A successful continuation delivers the
+configured context to the existing conversation. Do not relaunch merely because
+startup requires that review. If the provider reports a usage limit, keep the
+existing login and conversation; account capacity must recover before another
+model task can complete.
+
 The installed executable and login state stay in the home volume across ordinary
 container recreation. Deleting that volume removes them. Keep sign-in codes,
 tokens, account details and runtime state out of Git and public proof artifacts.
