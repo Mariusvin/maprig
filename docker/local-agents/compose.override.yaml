@@ -5,3 +5,4 @@ services:
     environment:
       PATH: /home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games
       NPM_CONFIG_PREFIX: /home/node/.local
+      OPENRIG_TERMINAL_BEARER_TOKEN: ${OPENRIG_AUTH_BEARER_TOKEN:?Set the existing local operator bearer token}

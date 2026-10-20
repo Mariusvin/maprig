@@ -117,6 +117,11 @@ volume, project mounts and local launch settings. Check for running rigs before
 recreating the service. An interactive shell's changed path does not update an
 already-running daemon's launch environment.
 
+The override also supplies the existing operator bearer to the local terminal
+client through `OPENRIG_TERMINAL_BEARER_TOKEN`. Resolve that value from private
+launch settings, never from a committed literal. This lets protected commands
+such as `rig send` and `rig capture` authenticate to the isolated daemon.
+
 Use the selected provider's documented npm package and a deliberate version with
 `npm install --global` inside the container. The configured prefix keeps the
 executable and packages under the persistent home. Check the CLI's version from
