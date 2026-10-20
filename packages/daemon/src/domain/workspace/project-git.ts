@@ -213,37 +213,16 @@ function normalizeGitPath(input: string): string {
 
 function pathOnDisk(repository: string, relativePath: string): string {
   const normalized = normalizeGitPath(relativePath);
-  const segments = normalized.split("/");
-  let current = repository;
-  for (let index = 0; index < segments.length; index += 1) {
-    current = path.join(current, segments[index]!);
-    const last = index === segments.length - 1;
-    let info: fs.Stats;
-    try {
-      info = fs.lstatSync(current);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return current;
-      throw error;
-    }
-
-    if (info.isSymbolicLink()) {
-      if (last) {
-        const parent = fs.realpathSync(path.dirname(current));
-        if (!isInside(repository, parent)) {
-          throw new ProjectGitError("path_escape", `Git path resolves through a parent outside the repository: ${relativePath}`, 400);
-        }
-        return current;
-      }
-    }
-    const actual = fs.realpathSync(current);
-    if (!isInside(repository, actual)) {
-      throw new ProjectGitError("path_escape", `Git path resolves outside the repository: ${relativePath}`, 400);
-    }
-    if (!last && !fs.statSync(actual).isDirectory()) {
-      throw new ProjectGitError("invalid_path", `Git path parent is not a directory: ${relativePath}`, 400);
-    }
+  const absolute = path.join(repository, ...normalized.split("/"));
+  let parent = path.dirname(absolute);
+  while (!fs.existsSync(parent) && parent !== repository) parent = path.dirname(parent);
+  const actualParent = fs.realpathSync(parent);
+  if (!isInside(repository, actualParent)) {
+    throw new ProjectGitError("path_escape", `Git path resolves through a parent outside the repository: ${relativePath}`, 400);
   }
-  return current;
+  if (!fs.statSync(actualParent).isDirectory()) throw new ProjectGitError("invalid_path", `Git path parent is not a directory: ${relativePath}`, 400);
+  // The final symlink itself is a valid Git object; reading its target is never required.
+  return absolute;
 }
 
 function readStatus(repository: string): ChangeRecord[] {
@@ -260,7 +239,6 @@ function readStatus(repository: string): ChangeRecord[] {
     }
     const pathValue = entry.slice(3);
     const normalized = normalizeGitPath(pathValue);
-    pathOnDisk(repository, normalized);
     changes.push({ path: normalized, rawPath: pathValue, status: entry.slice(0, 2) });
   }
   changes.sort((left, right) => left.path.localeCompare(right.path));
@@ -406,11 +384,17 @@ function diffUntrackedPath(repository: string, changedPath: string): Buffer {
     if (result.status !== 0 && result.status !== 1) {
       throw new ProjectGitError("git_diff_failed", `Could not read project diff: ${errorText(result.stderr) || errorText(result.stdout) || `exit code ${result.status}`}`, 409);
     }
-    const outputLines = result.stdout.toString("utf8").split("\n");
+    const outputLines = result.stdout.toString("utf8").split("\n").filter(line => !/^(old mode|new mode|new file mode) /.test(line));
     const quotePath = (value: string) => /[\s"\\]/.test(value)
       ? `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\t/g, "\\t").replace(/\n/g, "\\n")}"`
       : value;
     outputLines[0] = `diff --git ${quotePath(`a/${changedPath}`)} ${quotePath(`b/${changedPath}`)}`;
+    const info = fs.lstatSync(pathOnDisk(repository, changedPath));
+    const fileMode = runGitAt(repository, ["config", "--bool", "core.filemode"], { GIT_OPTIONAL_LOCKS: "0" });
+    const mode = info.isSymbolicLink() ? "120000" : fileMode.stdout.toString("utf8").trim() !== "false" && (info.mode & 0o111) ? "100755" : "100644";
+    outputLines.splice(1, 0, `new file mode ${mode}`);
+    const indexLine = outputLines.findIndex(line => line.startsWith("index "));
+    if (indexLine >= 0) outputLines[indexLine] = outputLines[indexLine]!.replace(/^index [a-f0-9]+\.\./, "index 0000000..");
     const oldPathLine = outputLines.findIndex(line => line.startsWith("--- "));
     if (oldPathLine >= 0) outputLines[oldPathLine] = "--- /dev/null";
     const output = outputLines.join("\n");
@@ -523,7 +507,7 @@ export function commitProjectGitChanges(repository: string, input: ProjectGitCom
 
 export function readProjectGitDiff(repository: string, requestedPath: string): { path: string; diff: string } {
   const changedPath = normalizeGitPath(requestedPath);
-  const state = inspectRepository(repository);
+  const state = { ...readHead(repository), changes: readStatus(repository) };
   const change = state.changes.find(entry => entry.path === changedPath);
   if (!change) throw new ProjectGitError("path_not_changed", `Path is not currently changed in this project: ${changedPath}`, 409);
   pathOnDisk(repository, changedPath);

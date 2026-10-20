@@ -336,4 +336,27 @@ describe("project Git routes", () => {
     expect(response.status).toBe(200);
     expect(git(repository, "show", `HEAD:${filename}`)).toBe("literal filename");
   });
+
+  it.skipIf(process.platform === "win32")("rejects a tracked path whose parent now points outside the repository", async () => {
+    const { app, repository, workspace } = fixture(".");
+    fs.mkdirSync(path.join(repository, "folder"));
+    seedCommit(repository, { "folder/file.txt": "inside\n" });
+    const outside = path.join(workspace, "outside"); fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, "file.txt"), "outside contents must not be read\n");
+    fs.rmSync(path.join(repository, "folder"), { recursive: true });
+    fs.symlinkSync(outside, path.join(repository, "folder"), "dir");
+    const response = await app.request("/api/project-git/demo");
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("path_escape");
+  });
+
+  it.skipIf(process.platform === "win32")("shows the mode that a new file will receive when executable bits are ignored", async () => {
+    const { app, repository } = fixture(".");
+    seedCommit(repository, { "base.txt": "base\n" });
+    git(repository, "config", "core.filemode", "false");
+    fs.writeFileSync(path.join(repository, "new.txt"), "new content\n"); fs.chmodSync(path.join(repository, "new.txt"), 0o755);
+    const response = await app.request("/api/project-git/demo/diff?path=new.txt");
+    expect(response.status).toBe(200);
+    expect((await response.json()).diff).toContain("new file mode 100644");
+  });
 });
