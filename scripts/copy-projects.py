@@ -198,7 +198,7 @@ def copy_project(entry: dict, destination: Path) -> dict:
         if value:
             git(target, "config", key, os.fsdecode(value))
             identity[key] = os.fsdecode(value)
-    for key in ("core.autocrlf", "core.eol", "core.filemode"):
+    for key in ("core.autocrlf", "core.eol", "core.filemode", "core.symlinks"):
         value = git(source, "config", "--get", key, check=False).stdout.strip()
         if value:
             git(target, "config", key, os.fsdecode(value))
@@ -223,11 +223,19 @@ def copy_project(entry: dict, destination: Path) -> dict:
         if before != after or digest(file) != before:
             raise RuntimeError(f"Source changed or copy mismatch: {source / rel}")
         copied.append({"path": rel, "sha256": after, "bytes": out.stat().st_size})
+    head_result = git(source, "rev-parse", "--verify", "HEAD", check=False) if is_repo else None
     receipt = {"version": 1, "source": str(source), "destination": str(target), "copiedAt": datetime.now(timezone.utc).isoformat(),
-               "git": is_repo, "originalHead": os.fsdecode(git(source, "rev-parse", "HEAD", check=False).stdout).strip() if is_repo else None,
+               "git": is_repo, "originalHead": os.fsdecode(head_result.stdout).strip() if head_result and head_result.returncode == 0 else None,
                "identityConfigured": bool(identity.get("user.name") and identity.get("user.email")), "files": copied, "fileCount": len(copied),
                "bytes": sum(f["bytes"] for f in copied), "excludedIgnoredRoots": excluded, "deletedSourcePaths": missing,
                "externalLinksNotCopied": external, "nestedProjectsNotExpanded": nested, "planningKind": "maproom" if room else "openrig"}
+    large_assets = [f["path"] for f in copied if not is_repo and f["bytes"] >= 64 * 1024 * 1024]
+    receipt["localAssetsExcludedFromNewGitIndex"] = large_assets
+    if large_assets:
+        with (target / ".git" / "info" / "exclude").open("a", encoding="utf8") as stream:
+            stream.write("\n# Large local assets copied outside the new source index\n")
+            for rel in large_assets:
+                stream.write("/" + rel.replace("[", "\\[").replace("*", "\\*").replace("?", "\\?") + "\n")
     scaffold(target, entry, room, receipt)
     if room:
         copied_room = json.loads((target / ".maproom" / "project.json").read_text(encoding="utf-8-sig"))

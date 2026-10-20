@@ -15,6 +15,16 @@ def git(root, *args):
 
 
 class CopyProjectsTests(unittest.TestCase):
+    def test_unborn_repository_has_no_invented_original_commit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            source = base / "empty"
+            source.mkdir()
+            git(source, "init", "--initial-branch=main")
+            module.copy_project({"source": str(source), "id": "empty", "name": "Empty"}, base / "copies")
+            receipt = json.loads((base / "copies/empty/.openrig-project/copy-receipt.json").read_text(encoding="utf8"))
+            self.assertIsNone(receipt["originalHead"])
+
     def test_repository_history_current_changes_and_maproom_are_independent(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
