@@ -94,6 +94,9 @@ describe("LiveNodeDetails (slice 25 Overview + Details)", () => {
       if (typeof url === "string" && url.includes("/nodes/")) {
         return { ok: true, json: async () => detail };
       }
+      if (typeof url === "string" && url.includes("/api/brain/")) {
+        return { ok: true, json: async () => ({ seat: { rigId: detail.rigId, logicalId: detail.logicalId, runtime: detail.runtime, sessionName: detail.canonicalSessionName, model: detail.model, effort: null }, running: {model:null,effort:null}, providers: [] }) };
+      }
       // Library calls return empty
       if (typeof url === "string" && url.includes("/api/specs/library")) {
         return { ok: true, json: async () => [] };
@@ -185,12 +188,14 @@ describe("LiveNodeDetails (slice 25 Overview + Details)", () => {
     const banner = await screen.findByTestId("seat-notification-banner");
     const table = await screen.findByTestId("seat-overview-table");
     const secondary = await screen.findByTestId("seat-overview-secondary");
+    const brain = await screen.findByTestId("brain-settings");
     const terminal = await screen.findByTestId("live-terminal-shell");
     const events = await screen.findByTestId("live-node-recent-events");
 
     expect(banner.compareDocumentPosition(table)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(table.compareDocumentPosition(secondary)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(secondary.compareDocumentPosition(terminal)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(secondary.compareDocumentPosition(brain)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(brain.compareDocumentPosition(terminal)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(terminal.compareDocumentPosition(events)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     // LiveNodeCurrentState no longer mounts inside Overview (follow-on-1

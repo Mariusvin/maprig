@@ -32,6 +32,7 @@ import { AgentPluginsList } from "./specs/AgentPluginsList.js";
 // surfaces in the codebase; this file simply doesn't reference it.
 import { SessionPreviewPane } from "./preview/SessionPreviewPane.js";
 import { ProgressiveTerminal } from "./terminal/ProgressiveTerminal.js";
+import { BrainSettings } from "./BrainSettings.js";
 import { SeatOverviewTable } from "./SeatOverviewTable.js";
 import { SeatOverviewSecondary } from "./SeatOverviewSecondary.js";
 import { SeatNotificationBanner } from "./SeatNotificationBanner.js";
@@ -457,6 +458,7 @@ function OverviewTab({ data, activityVisual }: { data: NodeDetailData; activityV
       <SeatNotificationBanner data={data} />
       <SeatOverviewTable data={data} activityVisual={activityVisual} />
       <SeatOverviewSecondary data={data} />
+      {["codex", "claude-code"].includes(data.runtime ?? "") && <BrainSettings key={`${data.rigId}:${data.logicalId}`} rigId={data.rigId} logicalId={data.logicalId} />}
       <InlineTerminal data={data} />
       <RecentEventsSection data={data} />
     </div>

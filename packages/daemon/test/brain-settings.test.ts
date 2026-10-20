@@ -78,3 +78,11 @@ it('serves the dashboard preview and requires explicit confirmation over HTTP',a
   expect(accepted.status).toBe(202);
   const remote=await app.request(`${base}?host=other-host`);expect(remote.status).toBe(409);
 });
+
+it('clears an authored effort when the dashboard selects provider default',async()=>{
+  const f=fixture();db.prepare('UPDATE nodes SET effort=? WHERE id=?').run('high',f.node.id);
+  const p=await f.service.plan(f.rig.id,'dev.agent',{provider:'openai',account:'primary',model:null,effort:null,mode:'save'});
+  const op=await f.service.apply(f.rig.id,'dev.agent',p.planId,true);
+  await vi.waitFor(()=>expect(f.service.operation(op.operationId).status).toBe('completed'));
+  expect(db.prepare('SELECT effort,effort_choice FROM nodes WHERE id=?').get(f.node.id)).toEqual({effort:null,effort_choice:null});
+});

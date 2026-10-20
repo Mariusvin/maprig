@@ -156,3 +156,23 @@ Treat the entire persistent home volume as private. Keep it out of images, build
 contexts, Git, public logs and proof artifacts. Ordinary container recreation
 retains its saved logins when the same home volume is mounted. Deleting that
 volume removes them. No provider logout command is used by this workflow.
+
+## Dashboard controls
+
+Open an agent's Overview and find **Brain settings** below the seat details.
+Choose a provider, a saved signed-in account, a model and a reasoning effort.
+Model suggestions come from the native provider cache or aliases; availability
+still depends on the selected subscription. A custom model ID is optional.
+
+**Save for next resume** stores model and effort without restarting the agent.
+Provider and account must stay unchanged for this option. **Preview and apply**
+shows every affected agent before confirmation. Accounts are shared per provider,
+so an account change can affect multiple rigs. Model or effort changes resume
+existing conversations by snapshotting the affected rig. All affected agents must
+be idle and have a known conversation ID.
+
+Changing provider starts a new native conversation with the seat's saved handoff.
+The dashboard shows saved settings separately from observed running settings;
+an unknown observation is labeled **Not yet observed**. It keeps operation status
+across panel navigation, provides an explicit status check after connection errors,
+and does not automatically retry mutations. Remote-host controls are read-only.

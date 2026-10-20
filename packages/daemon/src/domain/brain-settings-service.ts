@@ -116,6 +116,8 @@ export class BrainSettingsService {
     const notifications:ReturnType<EventBus['persistWithinTransaction']>[]=[];
     this.deps.rigRepo.db.transaction(()=>{
       this.deps.rigRepo.setNodeModel(row.id,selection.model);
+      // An explicit dashboard choice replaces the authored fallback too.
+      this.deps.rigRepo.db.prepare('UPDATE nodes SET effort=NULL WHERE id=?').run(row.id);
       this.deps.rigRepo.setNodeEffortChoice(row.id,selection.effort);
       notifications.push(this.deps.eventBus.persistWithinTransaction({type:'node.model_changed',rigId:row.rig_id,nodeId:row.id,logicalId:row.logical_id,from:row.model,to:selection.model,reason:'Brain settings in dashboard',operator:'dashboard'}));
       notifications.push(this.deps.eventBus.persistWithinTransaction({type:'node.effort_changed',rigId:row.rig_id,nodeId:row.id,logicalId:row.logical_id,from:row.effort_choice,to:selection.effort,reason:'Brain settings in dashboard',operator:'dashboard'}));
