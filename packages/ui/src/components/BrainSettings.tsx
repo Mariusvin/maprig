@@ -523,6 +523,14 @@ export function BrainSettings({ rigId, logicalId }: BrainSettingsProps) {
                   >
                     Check status
                   </button>
+                  <button
+                    type="button"
+                    className={secondaryButtonClass}
+                    onClick={() => { setOperationId(null); void settingsQuery.refetch(); }}
+                  >
+                    Refresh agent status
+                  </button>
+                  <p className="w-full text-on-surface-variant">The operation may still be running. Refreshing agent status does not apply another change.</p>
                 </div>
               ) : operationQuery.data ? (
                 <p role="status" className={operationQuery.data.status === "failed" || operationQuery.data.status === "incomplete" ? "text-error" : "text-on-surface"}>

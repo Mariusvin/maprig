@@ -134,7 +134,7 @@ describe("0.5.2-07 A2-3 — model-fidelity enumeration guard", () => {
     // The NodeRow shape must carry it, and createSuccessor must forward it onto the successor node.
     expect(handover, "NodeRow must carry codex_config_profile").toMatch(/codex_config_profile: string \| null/);
     expect(handover, "createSuccessor must forward the profile onto the successor node").toMatch(
-      /codexConfigProfile: node\.codex_config_profile/,
+      /codexConfigProfile: successorNode\.codex_config_profile/,
     );
     // The launcher must thread it from the successor node onto the transient binding the adapter reads.
     const launcher = read("domain/successor-session-launcher.ts");
@@ -152,7 +152,7 @@ describe("0.5.2-07 A2-3 — model-fidelity enumeration guard", () => {
     expect(handover, "NodeRow must carry effort").toMatch(/effort: string \| null/);
     // OPR.0.7.0.7: the successor carries the shared resolver's effort (saved seat choice, else authored).
     expect(handover, "createSuccessor must forward the resolved effort onto the successor node").toMatch(
-      /effort: readSeatEffort\(this\.db, node\.id\)\?\.effective/,
+      /effort: input\.successorSettings \? input\.successorSettings\.effort \?\? undefined : readSeatEffort\(this\.db, node\.id\)\?\.effective/,
     );
     const launcher = read("domain/successor-session-launcher.ts");
     expect(launcher, "SuccessorNode must declare effort").toMatch(/effort\?: string \| null/);

@@ -391,3 +391,15 @@ it("pauses operation tracking while viewing a remote host", async () => {
   await new Promise(resolve=>setTimeout(resolve,30));
   expect(fetchMock.mock.calls).toHaveLength(0);
 });
+
+it("can refresh the agent after the daemon no longer knows an old operation", async () => {
+  sessionStorage.setItem("openrig.brainOperation:rig-1:agent-1", "old-operation");
+  fetchMock.mockImplementation(async input => String(input).includes("/operations/")
+    ? jsonResponse({error:"operation_not_found"},404) : jsonResponse(brainSettings));
+  renderBrainSettings();
+  const refresh=await screen.findByRole("button",{name:"Refresh agent status"});
+  fireEvent.click(refresh);
+  await waitFor(()=>expect((screen.getByRole("button",{name:"Preview and apply"}) as HTMLButtonElement).disabled).toBe(false));
+  expect(sessionStorage.getItem("openrig.brainOperation:rig-1:agent-1")).toBeNull();
+  expect(fetchMock.mock.calls.some(([,init])=>init?.method==="POST")).toBe(false);
+});
