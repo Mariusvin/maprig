@@ -225,7 +225,7 @@ for (const provider of ['claude', 'openai']) {
     const name = provider === 'claude' ? 'claude' : 'codex';
     const sentinel = 'fixture-secret-output-must-stay-private';
     const output = provider === 'claude' ? JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', email: 'fixture@example.invalid', orgId: 'fixture-org' }) : 'Logged in using ChatGPT';
-    fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\nif(process.env.OPENAI_API_KEY||process.env.ANTHROPIC_AUTH_TOKEN) process.exit(1); console.log(${JSON.stringify(output)}); console.error(${JSON.stringify(sentinel)});`, { mode: 0o700 });
+    fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\nif(process.env.OPENAI_API_KEY||process.env.ANTHROPIC_AUTH_TOKEN) process.exit(1); if(${JSON.stringify(provider)}==='claude'&&process.env.CLAUDE_CONFIG_DIR) process.exit(2); console.log(${JSON.stringify(output)}); console.error(${JSON.stringify(sentinel)});`, { mode: 0o700 });
     f.env.PATH = bin;
     f.env.OPENAI_API_KEY = sentinel;
     f.env.ANTHROPIC_AUTH_TOKEN = sentinel;

@@ -148,7 +148,11 @@ export function checkAccount(provider, name, env = process.env) {
   const home = name === active && safeFile(path.join(layout.nativeHome, layout.credential)) ? layout.nativeHome : enrolled;
   directory(home);
   if (!safeFile(path.join(home, layout.credential))) return { provider, name, loggedIn: false };
-  const childEnv = { ...env, [layout.variable]: home };
+  const childEnv = { ...env };
+  // An unset Claude selection reads state from HOME/.claude.json. Explicitly
+  // setting its default directory would select a different state file.
+  if (provider === 'claude' && home === layout.nativeHome && !env.CLAUDE_CONFIG_DIR) delete childEnv.CLAUDE_CONFIG_DIR;
+  else childEnv[layout.variable] = home;
   for (const key of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']) delete childEnv[key];
   const result = spawnSync(layout.command, provider === 'claude' ? ['auth', 'status', '--json'] : ['login', 'status'], { env: childEnv, encoding: 'utf8', timeout: 15_000, maxBuffer: 128 * 1024, windowsHide: true });
   if (result.error || result.signal) throw Error('native_auth_status_unavailable');
