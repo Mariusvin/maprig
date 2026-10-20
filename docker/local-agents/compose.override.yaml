@@ -1,0 +1,7 @@
+# Use alongside an existing launch compose.yaml with /home/node in a persistent volume.
+# Install the selected CLI as the container's normal user, then sign in there.
+services:
+  openrig:
+    environment:
+      PATH: /home/node/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+      NPM_CONFIG_PREFIX: /home/node/.local

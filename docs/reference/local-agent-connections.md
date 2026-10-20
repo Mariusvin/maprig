@@ -97,6 +97,46 @@ environment as the daemon and its tmux sessions. See
 [provider setup](getting-started.md#choose-your-providers) and the
 [agent runtime settings](agent-spec.md).
 
+### Install a CLI in an isolated Docker environment
+
+A container with a read-only root filesystem can install its selected agent CLI
+into the persistent home volume. Keep `/home/node` mounted in that volume and
+run the installation as the normal container user. Do not put account credentials
+in the image, build context, repository or Compose configuration.
+
+The optional `docker/local-agents/compose.override.yaml` sets the npm installation
+prefix to `/home/node/.local` and puts its `bin` directory on the daemon's launch
+path. Apply it alongside the existing launch configuration:
+
+```sh
+docker compose --project-directory <launch-directory> -f <launch-directory>/compose.yaml -f docker/local-agents/compose.override.yaml up -d --no-build
+```
+
+This recreates the service to apply its environment. Preserve the existing home
+volume, project mounts and local launch settings. Check for running rigs before
+recreating the service. An interactive shell's changed path does not update an
+already-running daemon's launch environment.
+
+Use the selected provider's documented npm package and a deliberate version with
+`npm install --global` inside the container. The configured prefix keeps the
+executable and packages under the persistent home. Check the CLI's version from
+a new container execution, then run its normal sign-in command there. A device
+authorization flow, when the selected CLI supports it, lets the person sign in
+through their host browser without publishing another container port.
+Some accounts require enabling device authorization in their security settings
+first. After changing that setting, start a fresh login attempt and use its new
+code. Keep only one login attempt active at a time.
+
+Run `rig setup --providers <selected-provider> --no-herdr --json` inside the
+container to finish the selected provider's setup with plain tmux. An unused
+provider is skipped. Verify the CLI's native login status, then check actual
+managed-seat readiness and send a small task before reporting the brain ready.
+Daemon health or a successful CLI install alone does not prove model access.
+
+The installed executable and login state stay in the home volume across ordinary
+container recreation. Deleting that volume removes them. Keep sign-in codes,
+tokens, account details and runtime state out of Git and public proof artifacts.
+
 A Windows CLI installation and desktop login are not automatically available
 inside a Linux container or WSL distribution. Check the CLI's version and native
 login status in the environment where the seat will launch. Complete that CLI's
